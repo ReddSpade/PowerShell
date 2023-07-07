@@ -275,6 +275,27 @@ function UserAD()
 
 }
 
+function ISCI ()
+{
+    Get-Volume
+    Get-IscsiServerTarget | Format-Table TargetName,LunMappings,InitiatorIds,-MemoryStartupBytes
+
+    $VHDXVolChoix = Read-Host "Selectionnner le volume pour le disque virtuel ISCSI"
+    $VHDXNomChoix = Read-Host "Saisir le nom du disque virtuel ISCSI"
+    $VHDXTailleChoix = Read-Host "Saisir la taille du disque dur virtuel ISCSI en GB"
+    $VHDXPath = "$VHDXVolChoix"+"\iSCIVritualDisks\"+"$VHDXNomChoix"+".vhdx"
+    $VHDXTaille = Invoke-Expression $VHDXTailleChoix
+
+    New-IscsiVirtualDisk -Path $VHDXPath -Size $VHDXTaille
+
+    $NameTarget = Read-Host "Selectionner le nom de la cible"
+    $InitiateurIP = Read-Host "Selectionner l'IP de l'Initiateur"
+
+    New-IscsiServerTarget -TargetPath $NameTarget -InitiatorIds IPAddress:$InitiateurIP
+
+    Add-IscsiVritualDiskTargetMapping $NameTarget $VHDXPath -Lun 0
+}
+
 function console ()
 {
     Clear-Host
@@ -289,6 +310,7 @@ function console ()
     Write-Host "8: Initialiser un disque"
     Write-Host "9: Installer et déployer le DFS"
     Write-Host "10: Ajout des users AD"
+    Write-Host "11: LUN"
     $choix = Read-Host "Choisissez votre destin"
     switch ($choix)
         {
@@ -301,7 +323,8 @@ function console ()
             7 {JoinADAsUser;pause;console}
             8 {DiskInit;pause;console}
             9 {FSDFS;pause;console}
-            10{UserAD;pause;console}
+            10 {UserAD;pause;console}
+            11 {ISCI;pause;console}
             Q {exit}
             default {console}
         } 
