@@ -1,4 +1,4 @@
-#!TODO Ajouter la création des groupes, attribution des utilisateurs aux groupes, les droits des groupes sur les partagesSYSPREP Machine RSAT
+#!TODO Ajouter la création des groupes, attribution des utilisateurs aux groupes, les droits des groupes sur les partages
 Import-Module Hyper-V
 $global:VMPath = (Get-VMHost).VirtualMachinePath
 {
@@ -15,8 +15,8 @@ $global:VMPath = (Get-VMHost).VirtualMachinePath
     Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path $VMFullPath"\logs.vhdx"
     Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path $VMFullPath"\sysvol.vhdx"
 }
-
-function WS22ORE{
+function WS22ORE
+{
     #Variables d'information
 $VMName = Read-Host "Quel sera le nom de la VM ?"
 $VMRAM = Read-Host "Quel sera la quantité de RAM de la VM ?"
@@ -35,7 +35,8 @@ Add-VMHardDiskDrive -VMName $VMName -path $VMPath\$VMName\$VMName.vhdx
 Set-VM -name $VMName -ProcessorCount $CoreNumber -CheckpointType Disabled
 }
 
-function WS22GUI{
+function WS22GUI
+{
     #Variables d'information
 $VMName = Read-Host "Quel sera le nom de la VM ?"
 $VMRAM = Read-Host "Quel sera la quantité de RAM de la VM ?"
@@ -54,7 +55,8 @@ Add-VMHardDiskDrive -VMName $VMName -path $VMPath\$VMName\$VMName.vhdx
 Set-VM -name $VMName -ProcessorCount $CoreNumber -CheckpointType Disabled
 }
 
-function W10RSAT{
+function W10RSAT
+{
     #Variables d'information
 $VMName = Read-Host "Quel sera le nom de la VM ?"
 $VMRAM = Read-Host "Quel sera la quantité de RAM de la VM ?"
@@ -67,27 +69,27 @@ $GB = Invoke-Expression $VMRAM
 
 New-Item -ItemType Directory -Name $VMName -Path $VMPath
 
-Copy-Item -Path "E:\VM_Hyper-V\Sysprep\WIN10SYSPREP.vhdx" -Destination $VMPath\$VMName\$vmname.vhdx
+Copy-Item -Path "$VMPath\Sysprep\WIN10SYSPREP.vhdx" -Destination $VMPath\$VMName\$vmname.vhdx
 New-VM -Name $VMName -MemoryStartupBytes "$($GB)GB" -Path $VMPath -Generation $Gen
 Add-VMHardDiskDrive -VMName $VMName -path $VMPath\$VMName\$VMName.vhdx
 Set-VM -name $VMName -ProcessorCount $CoreNumber -CheckpointType Disabled
 }
 
-function shutdown ()
+function shutdown
 {
     Get-VM | Select-Object Name,State | Format-Table
     $VMSelect = Read-Host "Choisir la VM a eteindre"
     Stop-VM -name $VMSelect -Force
 }
 
-function startup ()
+function startup
 {
     Get-VM | Select-Object Name,State | Format-Table
     $VMSelect = Read-Host "Choisir la VM a demarrer"
     Start-VM -name $VMSelect
 }
 
-function delete ()
+function delete
 {
     Get-VM | Select-Object Name | Format-Table
     $VMSelect = Read-Host "Choisir la VM a supprimer"
@@ -96,8 +98,7 @@ function delete ()
     Remove-VM -name $VMSelect -Force
     Remove-Item -path ($VMLitteralPath).Path -Recurse -Force
 }
-
-function DiskAD ()
+function DiskAD
 {
     Get-VM | Select-Object Name |Format-Table
     Pause
@@ -109,7 +110,7 @@ function DiskAD ()
     Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path $VMPath\$VHDSize
 }
 
-function RAID ()
+<#function RAID ()
 {
     Get-PhysicalDisk
     Get-PhysicalDisk -CanPool $true
@@ -123,7 +124,7 @@ function RAID ()
     (Get-Disk | Where-Object FriendlyName -eq "RAIDS").Number
     New-Partition -DiskNumber 4 -DriveLetter R -UseMaximumSize
     Format-Volume -DriveLetter R -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
-}
+}#>
 
 function pause($message="Appuyez sur une touche pour continuer...")
 {
@@ -132,14 +133,14 @@ function pause($message="Appuyez sur une touche pour continuer...")
     Write-Host ""
 }
 
-function console ()
+function console
 {
     Clear-Host
-    Write-Host "#####################################################" -ForegroundColor Blue
-    Write-Host "#                                                   #" -ForegroundColor Blue
-    Write-Host "#          ↓ Menu de management VM Hyper-V ↓        #" -ForegroundColor Blue
-    Write-Host "#                                                   #" -ForegroundColor Blue
-    Write-Host "#####################################################" -ForegroundColor Blue
+    Write-Host "#######################################################" -ForegroundColor Blue
+    Write-Host "#                                                     #" -ForegroundColor Blue
+    Write-Host "#          ↓ Menu de management VM Hyper-V ↓          #" -ForegroundColor Blue
+    Write-Host "#                                                     #" -ForegroundColor Blue
+    Write-Host "#######################################################" -ForegroundColor Blue
 
 
     Write-Host "1: Création VM Windows Server Core 2022"

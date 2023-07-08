@@ -1,36 +1,41 @@
+$Global:NetIP = Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
 function GetIP ()
 {
-    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
+    $NetIP
 }
 
 function SetIP ()
 {
-    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
-    Write-Host "Souhaitez-vous.."
-    Write-Host "1: Ajouter une nouvelle IP"
-    Write-Host "2: Modifier l'IP existante"
-    $choix = Read-Host "Choisissez votre destin..."
-    switch($choix)
+    Write-Host "Souhaitez-vous..."
+    Write-Host "1: Activer le DCHP"
+    Write-Host "2: Définir une IP Statique"
+    $choix = Read-Host "Veuillez choisir"
+    switch ($choix)
+    {
+        1
         {
-            1{
-                [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
-                $IPAdress = Read-Host "Veuillez entrer l'IP souhaitee"
-                #$Mask = Read-Host "Choisir le masque sous-reseau"
-                $CIDR = Read-Host "Choisir le CIDR"
-                New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR 
-            }
-
-            2{
-                [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
-                $IPAdress = Read-Host "Veuillez entrer l'IP souhaitee"
-                [int32]$CIDR = Read-Host "Choisir le CIDR"
-                Set-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR
-            }
-            Q {default}
+            $NetIP
+            [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
+            Remove-NetRoute -InterfaceIndex $SelectNIC -Confirm:$false; Remove-NetIPAddress -InterfaceIndex $SelectNIC -Confirm:$false
+            Set-NetIPInterface -InterfaceIndex $SelectNIC -DHCP Enabled
         }
+        2
+        {
+            $NetIP
+            [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
+            $IPAdress = Read-Host "Veuillez entrer l'IP souhaitee"
+            Remove-NetRoute -InterfaceIndex $SelectNIC -Confirm:$false; Remove-NetIPAddress -InterfaceIndex $SelectNIC -Confirm:$false
+            #$Mask = Read-Host "Choisir le masque sous-reseau"
+            $CIDR = Read-Host "Choisir le CIDR"
+            New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR
+        }
+        default {console}
+
+    }
 }
 function DNS ()
 {
+    $NetIP
     [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
     $DNSIP = Read-Host "Choisir les IP souhaitees"
     Set-DnsClientServerAddress -InterfaceIndex $SelectNIC -Addresses $DNSIP
@@ -38,7 +43,7 @@ function DNS ()
 
 function ReverseZone ()
 {
-    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
+    $NetIP
     $DNSInterface = Read-Host "Choisir le numero d'interface"
     $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
     Get-DNSClientServerAddress -InterfaceIndex $DNSInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
@@ -50,7 +55,7 @@ function ReverseZone ()
 }
 function RemoveIP ()
 {
-    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
+    $NetIP
     [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
     Remove-NetRoute -InterfaceIndex $SelectNIC -Confirm:$false
     Remove-NetIPAddress -InterfaceIndex $SelectNIC -Confirm:$false
