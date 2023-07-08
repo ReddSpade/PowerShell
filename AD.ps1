@@ -24,7 +24,7 @@ function AD ()
     $NameNetBIOS = Read-Host "Nommez le NETBIOS"
     $NameDomain = Read-Host "Nommez le domaine"
 
-    Import-Module ADDSDeployment 
+    Import-Module ADDSDeployment
     Install-ADDSForest `
     -CreateDnsDelegation:$false `
     -DatabasePath "B:\NTDS" `
@@ -36,7 +36,7 @@ function AD ()
     -LogPath "L:\NTDS" `
     -NoRebootOnCompletion:$false `
     -SysvolPath "S:\SYSVOL" `
-    -Force:$true 
+    -Force:$true
 }
 
 function ReverseZone ()
@@ -109,7 +109,7 @@ function JoinADAsUser ()
 
 function FSDFS ()
 {
-    
+
     Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
     Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
     $SecondDC = Read-Host "Veuillez entrer le nom du second DC"
@@ -125,15 +125,15 @@ function FSDFS ()
 
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
-        
+
         Get-Disk | Format-Table
         $Disk = Read-host "Selectionnner un disque a initialiser"
-        
+
         Initialize-Disk -Number $Disk
-        
+
         Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
         $lecteur = Read-Host "Selectionner la lettre a attribuer"
-        
+
         New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
         Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
 
@@ -142,20 +142,20 @@ function FSDFS ()
         New-SmbShare -Name 'Partage$' -Path $lecteur':\DATA'
         }
 
-    
+
     Invoke-Command -ComputerName $SecondFS -ScriptBlock {
 
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
-        
+
         Get-Disk | Format-Table
         $Disk = Read-host "Selectionnner un disque a initialiser"
-        
+
         Initialize-Disk -Number $Disk
-        
+
         Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
         $lecteur = Read-Host "Selectionner la lettre a attribuer"
-        
+
         New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
         Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
 
@@ -170,7 +170,7 @@ function FSDFS ()
     $Path1 = "\\$($FirstFS)\$($NameSpace)" #? Combinaison des deux variable 
     $Path2 = "\\$($SecondFS)\$($NameSpace)" #? Combinaison des deux variable
     $DFSRoot = "\\$($ShareRoot)\$($NameSpace)" #?
-    
+
     New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $Path1
     New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $Path2
 
@@ -180,7 +180,7 @@ function FSDFS ()
     New-DfsnFolderTarget -Path $DFSRoot'\PERSO' -TargetPath $Path2'\PERSO'
     New-DfsnFolder -Path $DFSRoot'\SERVICES' -TargetPath $Path1'\SERVICES' -EnableTargetFailback $true -Description 'Folder for legacy software.'
     New-DfsnFolderTarget -Path $DFSRoot'\SERVICES' -TargetPath $Path2'\SERVICES'
-    
+
 
     #New-DfsReplicationGroup -GroupName "COMMUN" -Confirm:$false
     #Add-DfsrMember -GroupName "COMMUN" -ComputerName $serv1,$serv2 -Confirm:$false
@@ -236,13 +236,13 @@ function UserAD()
         $null = $Host.UI.RawUI.ReadKey("noecho,includeKeyDown")
         Write-Host ""
     }
-    
+
     $NomOU = Read-Host "Saisir Nom d'OU"
     $NomDC = (Get-ADDomain).DistinguishedName
     Write-Output $NomDC
 
     New-ADOrganizationalUnit -Name "$NomOU" -Path "$NomDC"
-     
+
     $CSVFile = "C:\Scripts\UserAD.csv"
     $CSVData = Import-CSV -Path $CSVFile -Delimiter ";" -Encoding UTF8
 
@@ -253,9 +253,6 @@ function UserAD()
         $UtilisateurLogin = $UtilisateurPrenom.Substring(0,1) + "." + $UtilisateurNom
         $UtilisateurLogin = $UtilisateurLogin.ToLower()
         Write-Host $UtilisateurLogin
- 
-        
-        
         $UtilisateurFonction = $Utilisateur.Fonction
 
         New-ADUser -Name "$UtilisateurNom $UtilisateurPrenom" `
@@ -267,7 +264,7 @@ function UserAD()
         -Path "OU=$NomOU,DC=SWORD,DC=LOCAL" `
         -AccountPassword (ConvertTo-SecureString -String "P@ssword2023!" -AsPlainText -Force) `
         -Enabled:$True
-         
+
          Set-ADAccountPassword -Identity $UtilisateurLogin -Reset -NewPassword (ConvertTo-SecureString -AsPlainText "P@ssword2023!" -Force)
          Get-ADUser -Filter * -SearchBase "OU=$NomOU,DC=SWORD,DC=LOCAL" | Set-ADUser -ChangePasswordAtLogon $True
 
@@ -327,6 +324,6 @@ function console ()
             11 {ISCI;pause;console}
             Q {exit}
             default {console}
-        } 
+        }
 }
 console

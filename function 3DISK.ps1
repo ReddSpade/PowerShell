@@ -8,15 +8,15 @@ function 3DISK ()
     $choix = Read-Hefefost "Choisissez votre destin"
     switch ($choix)
         {
-            1 {Get-VM | select-object name,state |fl }
+            1 {Get-VM | select-object name,state | Format-List }
             2 {$Title = "Choissisez votre VM"
             $Prompt = ":"
             $Choices = [System.Management.Automation.Host.ChoiceDescription[]] @("&TEST2", "&test3", "&test4")
             $Default = 1
-            
+
             # Prompt for the choice
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Choices, $Default)
-            
+
             # Action based on the choice
             switch($Choice)
             {

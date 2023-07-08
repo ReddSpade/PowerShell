@@ -43,6 +43,6 @@ function console ()
             1 {WS19CORE;pause;console}
             Q {exit}
             default {menu}
-        } 
+        }
 }
 console

@@ -19,7 +19,7 @@ function SetIP ()
                 $CIDR = Read-Host "Choisir le CIDR"
                 New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR 
             }
-            
+
             2{
                 [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
                 $IPAdress = Read-Host "Veuillez entrer l'IP souhaitee"
@@ -83,7 +83,7 @@ function console ()
             5 {RemoveIP;pause;console}
             Q {exit}
             default {console}
-        } 
+        }
 }
 console
 

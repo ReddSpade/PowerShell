@@ -22,7 +22,7 @@ function WS22ORE{
     #Variables d'information
 $VMName = Read-Host "Quel sera le nom de la VM ?"
 $VMRAM = Read-Host "Quel sera la quantité de RAM de la VM ?"
-$GB = Invoke-Expression $VMRAM 
+$GB = Invoke-Expression $VMRAM
 $VMPlace = "C:\VM"
 #$VMVHD = Read-Host "Où sera localisé le disque dur VHD ?"
 #$VMVHDSPACE = Read-Host "De combien de GB sera le disque dur ?"
@@ -42,7 +42,7 @@ function WS22GUI{
     #Variables d'information
 $VMName = Read-Host "Quel sera le nom de la VM ?"
 $VMRAM = Read-Host "Quel sera la quantité de RAM de la VM ?"
-$GB = Invoke-Expression $VMRAM 
+$GB = Invoke-Expression $VMRAM
 $VMPlace = "C:\VM"
 #$VMVHD = Read-Host "Où sera localisé le disque dur VHD ?"
 #$VMVHDSPACE = Read-Host "De combien de GB sera le disque dur ?"
@@ -83,6 +83,6 @@ function console ()
             3 {3disksup;pause;console}
             Q {exit}
             default {console}
-        } 
+        }
 }
 console
