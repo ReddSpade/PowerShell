@@ -1,10 +1,10 @@
 $Global:NetIP = Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
-function GetIP ()
+function GetIP
 {
     $NetIP
 }
 
-function SetIP ()
+function SetIP
 {
     Write-Host "Souhaitez-vous..."
     Write-Host "1: Activer le DCHP"
@@ -33,27 +33,14 @@ function SetIP ()
 
     }
 }
-function DNS ()
+function DNS
 {
     $NetIP
     [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
     $DNSIP = Read-Host "Choisir les IP souhaitees"
     Set-DnsClientServerAddress -InterfaceIndex $SelectNIC -Addresses $DNSIP
 }
-
-function ReverseZone ()
-{
-    $NetIP
-    $DNSInterface = Read-Host "Choisir le numero d'interface"
-    $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
-    Get-DNSClientServerAddress -InterfaceIndex $DNSInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
-    Set-DnsClientServerAddress -InterfaceIndex $DNSInterface -ServerAddresses $DNSIP
-    $NetworkIP = Read-Host "Saisissez l'adresse du reseau au format IP/CIDR"
-
-    Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
-    ipconfig /registerdns
-}
-function RemoveIP ()
+function RemoveIP
 {
     $NetIP
     [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
@@ -67,7 +54,7 @@ function pause($message="Appuyez sur une touche pour continuer...")
     $null = $Host.UI.RawUI.ReadKey("noecho,includeKeydown")
     Write-Host ""
 }
-function console ()
+function console
 {
     Clear-Host
     Write-Host "Menu Script"
@@ -75,8 +62,7 @@ function console ()
     Write-Host "1: Voir les NIC"
     Write-Host "2: Modifier l'IPv4"
     Write-Host "3: Modifier le DNS"
-    Write-Host "4: Zone DNS inversee"
-    Write-Host "5: Retirer les IP et routes"
+    Write-Host "4: Retirer les IP et routes"
     Write-Host "Q: Quitter le Script"
     $choix = Read-Host "Choisissez votre destin"
     switch ($choix)
@@ -84,8 +70,7 @@ function console ()
             1 {GetIP;Pause;console}
             2 {SetIP;pause;console}
             3 {DNS;pause;console}
-            4 {DNSIPv4;pause;console}
-            5 {RemoveIP;pause;console}
+            4 {RemoveIP;pause;console}
             Q {exit}
             default {console}
         }

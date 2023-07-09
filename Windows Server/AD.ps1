@@ -1,4 +1,4 @@
-function 3disksup ()
+function 3disksup
 {
     Get-Disk
     $DiskBDD = Read-Host "Sélectionner un disque pour la BDD"
@@ -18,7 +18,7 @@ function 3disksup ()
 }
 
 
-function AD ()
+function AD
 {
     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
     $NameNetBIOS = Read-Host "Nommez le NETBIOS"
@@ -39,7 +39,7 @@ function AD ()
     -Force:$true
 }
 
-function ReverseZone ()
+function ReverseZone
 {
     Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
     $DNSInterface = Read-Host "Choisir le numero d`'interface"
@@ -52,7 +52,7 @@ function ReverseZone ()
     ipconfig /registerdns
 }
 
-function DHCP ()
+function DHCP
 {
     #Installation de la feature DHCP
     Install-WindowsFeature DHCP -IncludeManagementTools
@@ -76,7 +76,7 @@ function DHCP ()
 
 }
 
-function JoinAsDC ()
+function JoinAsDC
 {
     $DomainName = (Resolve-dnsname -name redlabs.fr).name
 
@@ -98,7 +98,7 @@ function JoinAsDC ()
     -Force:$true `
 }
 
-function JoinADAsUser ()
+function JoinADAsUser
 {
     $DomainName = Read-Host "Veuillez nommer le domaine"
     $Rename = Read-Host "Indiquez un nouveau nom pour le poste"
@@ -107,7 +107,7 @@ function JoinADAsUser ()
     Add-Computer -Domain $DomainDNS -Restart
 }
 
-function FSDFS ()
+function FSDFS
 {
 
     Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
@@ -209,11 +209,8 @@ function FSDFS ()
 
 }
 
-function DFSReplic ()
-{
 
-}
-function DiskInit ()
+function DiskInit
 {
     Get-Disk
     $Disk = Read-Host "Sélectionner un disque pour la BDD"
@@ -224,7 +221,7 @@ function DiskInit ()
     Format-Volume -DriveLetter $Letter -FileSystem NTFS -Confirm:$false -NewFileSystemLabel $NewFileLabel
 }
 
-function UserAD()
+<#function UserAD
 {
     New-Item -ItemType Directory -Name UserAD -Path C:\Scripts\
 
@@ -268,11 +265,25 @@ function UserAD()
          Set-ADAccountPassword -Identity $UtilisateurLogin -Reset -NewPassword (ConvertTo-SecureString -AsPlainText "P@ssword2023!" -Force)
          Get-ADUser -Filter * -SearchBase "OU=$NomOU,DC=SWORD,DC=LOCAL" | Set-ADUser -ChangePasswordAtLogon $True
 
-    }
+    }#>
 
-}
+<#function RAID ()
+{
+    Get-PhysicalDisk
+    Get-PhysicalDisk -CanPool $true
+    Get-StorageSubSystem
+    $s = Get-StorageSubSystem
+    $disk = (Get-PhysicalDisk -CanPool $true)
+    New-StoragePool -FriendlyName "MyPool" -StorageSubSystemUniqueId $s.UniqueId -PhysicalDisks $disk -ResiliencySettingNameDefault Parity
+    New-VirtualDisk -FriendlyName "RAIDS" -StoragePoolFriendlyName "MyPool" -UseMaximumSize -ResiliencySettingName Parity
+    Initialize-Disk -FriendlyName "RAIDS"
+    Get-Disk
+    (Get-Disk | Where-Object FriendlyName -eq "RAIDS").Number
+    New-Partition -DiskNumber 4 -DriveLetter R -UseMaximumSize
+    Format-Volume -DriveLetter R -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
+}#>
 
-function ISCI ()
+<#function ISCI
 {
     Get-Volume
     Get-IscsiServerTarget | Format-Table TargetName,LunMappings,InitiatorIds,-MemoryStartupBytes
@@ -291,12 +302,17 @@ function ISCI ()
     New-IscsiServerTarget -TargetPath $NameTarget -InitiatorIds IPAddress:$InitiateurIP
 
     Add-IscsiVritualDiskTargetMapping $NameTarget $VHDXPath -Lun 0
-}
+}#>
 
-function console ()
+function console
 {
     Clear-Host
-    Write-Host "Menu Script"
+    Write-Host "########################################################" -ForegroundColor Blue
+    Write-Host "#                                                      #" -ForegroundColor Blue
+    Write-Host "#         ↓ Menu de Gestion Active Directory ↓         #" -ForegroundColor Blue
+    Write-Host "#                                                      #" -ForegroundColor Blue
+    Write-Host "########################################################" -ForegroundColor Blue
+
 
     Write-Host "1: Connexion des 3 disques"
     Write-Host "2: Installation AD"
