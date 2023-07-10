@@ -161,7 +161,7 @@ function FSDFS
 
         'COMMUN','SERVICES','PERSO' | Foreach-Object {New-Item -path "$($lecteur):\DATA\$_" -ItemType 'Directory'}
 
-        New-SmbShare -Name 'Partage$' -Path $lecteur':\DATA' 
+        New-SmbShare -Name 'Partage$' -Path $lecteur':\DATA'
     }
 
 
@@ -206,7 +206,14 @@ function FSDFS
     #New-DfsReplicatedFolder -GroupName "SERVICES" -FolderName "SERVICES" -Confirm:$false
     #Set-DfsrMembership -GroupName "SERVICES" -FolderName "SERVICES" -ContentPath "$($lettre1):\SERVICES" -ComputerName $serv1 -PrimaryMember $True -Confirm:$false -Force
     #Set-DfsrMembership -GroupName "SERVICES" -FolderName "SERVICES" -ContentPath "$($lettre2):\SERVICES" -ComputerName $serv2 -Confirm:$false -Force
-
+    $Folders = @("SERVICES","COMMUN","PERSO")
+    $Folders | ForEach-Object {
+        New-DfsReplicationGroup -GroupName $_ -Confirm:$false
+        Add-DfsMember -GroupName $_ -ComputerName $FirstFS,$SecondFS -Confirm:$false
+        Add-DfsrConnection -GroupName $_ -SourceComputerName $FirstFS -DestinationComputerName $SecondFS -Confirm:$false
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($lettre1):\$_" -ComputerName $FirstFS -PrimaryMember $True -Confirm:$false -Force
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($lettre2):\$_" -ComputerName $SecondFS -PrimaryMember $True -Confirm:$false -Force
+    }
 }
 
 

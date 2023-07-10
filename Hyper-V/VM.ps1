@@ -1,7 +1,7 @@
 #!TODO Ajouter la création des groupes, attribution des utilisateurs aux groupes, les droits des groupes sur les partages
 Import-Module Hyper-V
 $global:VMPath = (Get-VMHost).VirtualMachinePath
-function WS22ORE
+function WIN22ORE
 {
     #Variables d'information
 $VMName = Read-Host "Quel sera le nom de la VM ?"
@@ -20,7 +20,7 @@ New-VM -Name $VMName -MemoryStartupBytes "$($GB)GB" -Path $VMPath -Generation $G
 Add-VMHardDiskDrive -VMName $VMName -path $VMPath\$VMName\$VMName.vhdx
 Set-VM -name $VMName -ProcessorCount $CoreNumber -CheckpointType Disabled
 }
-function WS22GUI
+function WIN22GUI
 {
     #Variables d'information
 $VMName = Read-Host "Quel sera le nom de la VM ?"
@@ -113,7 +113,7 @@ function ConnectSwitch
     $VMSelect = Read-Host "Choisir la VM à connecter au Switch"
     Get-VMSwitch | Format-Table
     $VMSwitch = Read-Host "Choisir le Switch cible"
-    Add-vmnetworkadapter -Name "Carte Réseau" -SwitchName $VMSwitch -VMName $VMSelect
+    Add-VMNetworkAdapter -Name "Carte Réseau" -SwitchName $VMSwitch -VMName $VMSelect
 }
 function NewSwitch
 {
@@ -163,8 +163,8 @@ function console
     $choix = Read-Host "Choisissez votre destin"
     switch ($choix)
         {
-            1 {WS22ORE;pause;console}
-            2 {WS22GUI;pause;console}
+            1 {WIN22ORE;pause;console}
+            2 {WIN22GUI;pause;console}
             3 {W10RSAT;pause;console}
             4 {DiskAD;pause;console}
             5 {DCDisk;pause;console}
