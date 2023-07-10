@@ -81,8 +81,8 @@ function DiskAD
     $VHDSize = Read-Host "Veuillez entrer une taille en GB"
     $VHDName = Read-Host "Veuillez nommer votre disque"
     $GB = Invoke-Expression $VHDSize
-    New-VHD -Path $VMPath"\$VHDName" -SizeBytes "$($GB)GB"
-    Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path $VMPath\$VHDSize
+    New-VHD -Path "$VMPath$VMNameAdd\$VHDName.vhdx" -SizeBytes "$($GB)GB"
+    Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path "$VMPath$VMNameAdd\$VHDName.vhdx"
 }
 
 function shutdown

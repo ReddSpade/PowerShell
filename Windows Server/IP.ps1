@@ -24,7 +24,8 @@ function SetIP
             $NetIP
             [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
             $IPAdress = Read-Host "Veuillez entrer l'IP souhaitee"
-            Remove-NetRoute -InterfaceIndex $SelectNIC -Confirm:$false; Remove-NetIPAddress -InterfaceIndex $SelectNIC -Confirm:$false
+            Remove-NetRoute -InterfaceIndex $SelectNIC -Confirm:$false
+            Remove-NetIPAddress -InterfaceIndex $SelectNIC -Confirm:$false
             #$Mask = Read-Host "Choisir le masque sous-reseau"
             $CIDR = Read-Host "Choisir le CIDR"
             New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR

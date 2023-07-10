@@ -20,6 +20,8 @@ function 3disksup
 
 function AD
 {
+    $Rename = Read-Host "Indiquez un nouveau nom pour le poste"
+    Rename-Computer -NewName $Rename
     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
     $NameNetBIOS = Read-Host "Nommez le NETBIOS"
     $NameDomain = Read-Host "Nommez le domaine"
@@ -101,9 +103,9 @@ function JoinAsDC
 function JoinADAsUser
 {
     $DomainName = Read-Host "Veuillez nommer le domaine"
-    $Rename = Read-Host "Indiquez un nouveau nom pour le poste"
+    #$Rename = Read-Host "Indiquez un nouveau nom pour le poste"
     $DomainDNS = (Resolve-dnsname -name $DomainName).name | Sort-object -Unique
-    Rename-Computer -NewName $Rename
+    #Rename-Computer -NewName $Rename
     Add-Computer -Domain $DomainDNS -Restart
 }
 
@@ -126,20 +128,20 @@ function FSDFS
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
 
-        Get-Disk | Format-Table
-        $Disk = Read-host "Selectionnner un disque a initialiser"
+        #Get-Disk | Format-Table
+        #$Disk = Read-host "Selectionnner un disque a initialiser"
 
-        Initialize-Disk -Number $Disk
+        #Initialize-Disk -Number $Disk
 
-        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
-        $lecteur = Read-Host "Selectionner la lettre a attribuer"
+        #Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
+        #$lecteur = Read-Host "Selectionner la lettre a attribuer"
 
-        New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
-        Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
+        #New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
+        #Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
 
-        'COMMUN','SERVICES','PERSO' | Foreach-Object {New-Item -path "$($lecteur):\DATA\$_" -ItemType 'Directory'}
+        'COMMUN','SERVICES','PERSO' | Foreach-Object {New-Item -path "L:\Files\$_"  -ItemType 'Directory'}
 
-        New-SmbShare -Name 'Partage$' -Path $lecteur':\DATA'
+        New-SmbShare -Name 'Partage$' -Path "L:\Files\"
         }
 
 
@@ -148,20 +150,20 @@ function FSDFS
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
 
-        Get-Disk | Format-Table
-        $Disk = Read-host "Selectionnner un disque a initialiser"
+        #Get-Disk | Format-Table
+        #$Disk = Read-host "Selectionnner un disque a initialiser"
 
-        Initialize-Disk -Number $Disk
+        #Initialize-Disk -Number $Disk
 
-        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
-        $lecteur = Read-Host "Selectionner la lettre a attribuer"
+        #Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
+        #$lecteur = Read-Host "Selectionner la lettre a attribuer"
 
-        New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
-        Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
+        #New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
+        #Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
 
-        'COMMUN','SERVICES','PERSO' | Foreach-Object {New-Item -path "$($lecteur):\DATA\$_" -ItemType 'Directory'}
+        'COMMUN','SERVICES','PERSO' | Foreach-Object {New-Item -path "L:\Files\$_"  -ItemType 'Directory'}
 
-        New-SmbShare -Name 'Partage$' -Path $lecteur':\DATA'
+        New-SmbShare -Name 'Partage$' -Path "L:\Files\"
     }
 
 
@@ -209,10 +211,10 @@ function FSDFS
     $Folders = @("SERVICES","COMMUN","PERSO")
     $Folders | ForEach-Object {
         New-DfsReplicationGroup -GroupName $_ -Confirm:$false
-        Add-DfsMember -GroupName $_ -ComputerName $FirstFS,$SecondFS -Confirm:$false
+        Add-DfsrMember -GroupName $_ -ComputerName $FirstFS,$SecondFS -Confirm:$false
         Add-DfsrConnection -GroupName $_ -SourceComputerName $FirstFS -DestinationComputerName $SecondFS -Confirm:$false
-        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($lettre1):\$_" -ComputerName $FirstFS -PrimaryMember $True -Confirm:$false -Force
-        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($lettre2):\$_" -ComputerName $SecondFS -PrimaryMember $True -Confirm:$false -Force
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "L:\$_" -ComputerName $FirstFS -PrimaryMember $True -Confirm:$false -Force
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "L:\$_" -ComputerName $SecondFS -PrimaryMember $True -Confirm:$false -Force
     }
 }
 
@@ -220,11 +222,11 @@ function FSDFS
 function DiskInit
 {
     Get-Disk
-    $Disk = Read-Host "Sélectionner un disque pour la BDD"
+    $Disk = Read-Host "Sélectionner le disque à initialiser"
     $Letter = Read-Host "Entrer une lettre pour votre la partition"
     $NewFileLabel = Read-Host "Quel sera le nom du disque ?"
     Initialize-Disk -Number $Disk
-    New-Partition -DiskNumber $Disk -DriveLetter M -UseMaximumSize
+    New-Partition -DiskNumber $Disk -DriveLetter $Letter -UseMaximumSize
     Format-Volume -DriveLetter $Letter -FileSystem NTFS -Confirm:$false -NewFileSystemLabel $NewFileLabel
 }
 
@@ -324,13 +326,12 @@ function console
     Write-Host "1: Connexion des 3 disques"
     Write-Host "2: Installation AD"
     Write-Host "3: Zone inversee DNS"
-    Write-Host "5: Installation DHCP"
-    Write-Host "6: Rejoindre le domain en tant que controleur de domaine"
-    Write-Host "7: Rejoindre le domaine en tant qu'utilisateur"
-    Write-Host "8: Initialiser un disque"
-    Write-Host "9: Installer et déployer le DFS"
-    Write-Host "10: Ajout des users AD"
-    Write-Host "11: LUN"
+    Write-Host "4: Installation DHCP"
+    Write-Host "5: Rejoindre le domain en tant que controleur de domaine"
+    Write-Host "6: Rejoindre le domaine en tant qu'utilisateur"
+    Write-Host "7: Initialiser un disque"
+    Write-Host "8: Installer et déployer le DFS"
+    Write-Host "9: Ajout des users AD"
     $choix = Read-Host "Choisissez votre destin"
     switch ($choix)
         {
@@ -340,11 +341,9 @@ function console
             4 {DHCP;pause;console}
             5 {JoinAsDC;pause;console}
             6 {JoinADAsUser;pause;console}
-            7 {JoinADAsUser;pause;console}
-            8 {DiskInit;pause;console}
-            9 {FSDFS;pause;console}
-            10 {UserAD;pause;console}
-            11 {ISCI;pause;console}
+            7 {DiskInit;pause;console}
+            8 {FSDFS;pause;console}
+            9 {UserAD;pause;console}
             Q {exit}
             default {console}
         }
