@@ -109,18 +109,33 @@ function JoinADAsUser
     Add-Computer -Domain $DomainDNS -Restart
 }
 
+#TODO Automatiser lecteurs dans variable, boucle foreach ou elsif pour le nombre de dossiers dans les Files system
 function FSDFS
 {
 
     Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
     Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
+    New-Item -ItemType Directory -Path "C:\DFSRoot\Partage"
+    New-SmbShare -Name "Partage" -Path "C:\DFSRoot\Partage"
+
+    $FirstDC = Read-Host "Veuillez entrer le nom du premier DC"
     $SecondDC = Read-Host "Veuillez entrer le nom du second DC"
     $FirstFS = Read-Host "Veuillez entrer le nom du premier FS"
     $SecondFS = Read-Host "Veuillez entrer le nom du second FS"
+    $ShareRoot = Read-Host "Saisir le nom du domaine" #? Ici on renseigne le domaine, ça fait partie de l'espace de nom
+    $NameSpace = Read-Host "Saisir le nom du partage" #? Exemple: Partage$, Share$, etc..
+    $PathDC1 = "\\$FirstDC\$NameSpace" #? Combinaison des deux variable
+    $PathDC2 = "\\$SecondDC\$NameSpace" #? Combinaison des deux variable
+    $PathFS1 = "\\$FirstFS\$NameSpace"
+    $PathFS2 = "\\$SecondFS\$NameSpace"
+    $DFSRoot = "\\$ShareRoot\$NameSpace" #?
+    $Folders = @("SERVICES","COMMUN","PERSO")
 
     Invoke-Command -ComputerName $SecondDC -ScriptBlock {
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
+        New-Item -ItemType Directory -Path "C:\DFSRoot\Partage"
+        New-SmbShare -Name "Partage" -Path "C:\DFSRoot\Partage"
     }
 
     Invoke-Command -ComputerName $FirstFS -ScriptBlock {
@@ -128,20 +143,20 @@ function FSDFS
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
 
-        #Get-Disk | Format-Table
-        #$Disk = Read-host "Selectionnner un disque a initialiser"
+        Get-Disk | Format-Table
+        $Disk = Read-host "Selectionnner un disque a initialiser"
 
-        #Initialize-Disk -Number $Disk
+        Initialize-Disk -Number $Disk
 
-        #Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
-        #$lecteur = Read-Host "Selectionner la lettre a attribuer"
+        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
+        $Letter = Read-Host "Selectionner la lettre a attribuer"
 
-        #New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
-        #Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
+        New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
+        Format-Volume -DriveLetter $Letter -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
 
         'COMMUN','SERVICES','PERSO' | Foreach-Object {New-Item -path "L:\Files\$_"  -ItemType 'Directory'}
 
-        New-SmbShare -Name 'Partage$' -Path "L:\Files\"
+        New-SmbShare -Name 'Partage' -Path "L:\Files\"
         }
 
 
@@ -150,73 +165,37 @@ function FSDFS
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
 
-        #Get-Disk | Format-Table
-        #$Disk = Read-host "Selectionnner un disque a initialiser"
+        Get-Disk | Format-Table
+        $Disk = Read-host "Selectionnner un disque a initialiser"
 
-        #Initialize-Disk -Number $Disk
+        Initialize-Disk -Number $Disk
 
-        #Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
-        #$lecteur = Read-Host "Selectionner la lettre a attribuer"
+        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
+        $lecteur = Read-Host "Selectionner la lettre a attribuer"
 
-        #New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
-        #Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
+        New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
+        Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
 
         'COMMUN','SERVICES','PERSO' | Foreach-Object {New-Item -path "L:\Files\$_"  -ItemType 'Directory'}
 
-        New-SmbShare -Name 'Partage$' -Path "L:\Files\"
+        New-SmbShare -Name 'Partage' -Path "L:\Files\"
     }
 
-
-    $ShareRoot = Read-Host "Saisir le nom du domaine" #? Ici on renseigne le domaine, ça fait partie de l'espace de nom
-    $NameSpace = Read-Host "Saisir le nom du partage" #? Exemple: Partage$, Share$, etc..
-    $Path1 = "\\$($FirstFS)\$($NameSpace)" #? Combinaison des deux variable 
-    $Path2 = "\\$($SecondFS)\$($NameSpace)" #? Combinaison des deux variable
-    $DFSRoot = "\\$($ShareRoot)\$($NameSpace)" #?
-
-    New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $Path1
-    New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $Path2
-
-    New-DfsnFolder -Path $DFSRoot'\COMMUN' -TargetPath $Path1'\COMMUN' -EnableTargetFailback $true -Description 'Folder for legacy software.'
-    New-DfsnFolderTarget -Path $DFSRoot'\COMMUN' -TargetPath $Path2'\COMMUN'
-    New-DfsnFolder -Path $DFSRoot'\PERSO' -TargetPath $Path1'\PERSO' -EnableTargetFailback $true -Description 'Folder for legacy software.'
-    New-DfsnFolderTarget -Path $DFSRoot'\PERSO' -TargetPath $Path2'\PERSO'
-    New-DfsnFolder -Path $DFSRoot'\SERVICES' -TargetPath $Path1'\SERVICES' -EnableTargetFailback $true -Description 'Folder for legacy software.'
-    New-DfsnFolderTarget -Path $DFSRoot'\SERVICES' -TargetPath $Path2'\SERVICES'
-
-
-    #New-DfsReplicationGroup -GroupName "COMMUN" -Confirm:$false
-    #Add-DfsrMember -GroupName "COMMUN" -ComputerName $serv1,$serv2 -Confirm:$false
-    #Add-DfsrConnection -GroupName "COMMUN" -SourceComputerName $serv1 -DestinationComputerName $serv2 -Confirm:$false
-    #New-DfsReplicatedFolder -GroupName "COMMUN" -FolderName "COMMUN" -Confirm:$false
-    #Set-DfsrMembership -GroupName "COMMUN" -FolderName "COMMUN" -ContentPath "$($lettre1):\COMMUN" -ComputerName $serv1 -PrimaryMember $True -Confirm:$false -Force
-    #Set-DfsrMembership -GroupName "COMMUN" -FolderName "COMMUN" -ContentPath "$($lettre2):\COMMUN" -ComputerName $serv2 -Confirm:$false -Force
-
-
-
-    #New-DfsReplicationGroup -GroupName "PERSO" -Confirm:$false
-    #Add-DfsrMember -GroupName "PERSO" -ComputerName $serv1,$serv2 -Confirm:$false
-    #Add-DfsrConnection -GroupName "PERSO" -SourceComputerName $serv1 -DestinationComputerName $serv2 -Confirm:$false
-    #New-DfsReplicatedFolder -GroupName "PERSO" -FolderName "PERSO" -Confirm:$false
-    #Set-DfsrMembership -GroupName "PERSO" -FolderName "PERSO" -ContentPath "$($lettre1):\PERSO" -ComputerName $serv1 -PrimaryMember $True -Confirm:$false -Force
-    #Set-DfsrMembership -GroupName "PERSO" -FolderName "PERSO" -ContentPath "$($lettre2):\PERSO" -ComputerName $serv2 -Confirm:$false -Force
-
-
-
-    #New-DfsReplicationGroup -GroupName "SERVICES" -Confirm:$false
-    #Add-DfsrMember -GroupName "SERVICES" -ComputerName $serv1,$serv2 -Confirm:$false
-    #Add-DfsrConnection -GroupName "SERVICES" -SourceComputerName $serv1 -DestinationComputerName $serv2 -Confirm:$false
-    #New-DfsReplicatedFolder -GroupName "SERVICES" -FolderName "SERVICES" -Confirm:$false
-    #Set-DfsrMembership -GroupName "SERVICES" -FolderName "SERVICES" -ContentPath "$($lettre1):\SERVICES" -ComputerName $serv1 -PrimaryMember $True -Confirm:$false -Force
-    #Set-DfsrMembership -GroupName "SERVICES" -FolderName "SERVICES" -ContentPath "$($lettre2):\SERVICES" -ComputerName $serv2 -Confirm:$false -Force
-    $Folders = @("SERVICES","COMMUN","PERSO")
+    New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $PathDC1
+    New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $PathDC2
     $Folders | ForEach-Object {
-        New-DfsReplicationGroup -GroupName $_ -Confirm:$false
+    New-DfsnFolder -Path "$DFSRoot\$_" -TargetPath "$PathFS1\$_" -EnableTargetFailback $true -Description 'Folder for legacy software.'
+    New-DfsnFolderTarget -Path "$DFSRoot\$_" -TargetPath "$PathFS2\$_"
+    }
+    $Folders | ForEach-Object {
+        New-DfsReplicationGroup -GroupName $_ -Confirm:$false | New-DFSReplicatedFolder -Foldername $_
         Add-DfsrMember -GroupName $_ -ComputerName $FirstFS,$SecondFS -Confirm:$false
         Add-DfsrConnection -GroupName $_ -SourceComputerName $FirstFS -DestinationComputerName $SecondFS -Confirm:$false
-        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "L:\$_" -ComputerName $FirstFS -PrimaryMember $True -Confirm:$false -Force
-        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "L:\$_" -ComputerName $SecondFS -PrimaryMember $True -Confirm:$false -Force
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "L:\Files\$_" -ComputerName $FirstFS -PrimaryMember $True -Confirm:$false -Force
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "L:\Files\$_" -ComputerName $SecondFS $True -Confirm:$false -Force
     }
 }
+
 
 
 function DiskInit
