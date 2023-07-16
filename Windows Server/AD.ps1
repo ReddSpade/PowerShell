@@ -1,27 +1,25 @@
-function 3disksup
+function 3disksup #? Suite de commande pour définir les 3 disques pour les emplacements nécessaires à la création un contrôleur de domaine (SYSVOL, NTDS BDD, NTDS LOGS)
 {
-    Get-Disk
+    Get-Disk | Out-Host
     $DiskBDD = Read-Host "Sélectionner un disque pour la BDD"
     Initialize-Disk -Number $DiskBDD
-    New-Partition -DiskNumber $DiskBDD -DriveLetter B -Size 4GB
+    New-Partition -DiskNumber $DiskBDD -DriveLetter B -UseMaximumSize
     Format-Volume -DriveLetter B -FileSystem NTFS -Confirm:$false -NewFileSystemLabel BDD
-    Get-Disk
+    Get-Disk | Out-Host
     $DiskLOGS = Read-Host "Sélectionner un disque pour les Logs"
     Initialize-Disk -Number $DiskLOGS
-    New-Partition -DiskNumber $DiskLOGS -DriveLetter L -Size 4GB
+    New-Partition -DiskNumber $DiskLOGS -DriveLetter L -UseMaximumSize
     Format-Volume -DriveLetter L -FileSystem NTFS -Confirm:$false -NewFileSystemLabel LOGS
-    Get-Disk
+    Get-Disk | Out-Host
     $DiskSYSVOL = Read-Host "Sélectionner un disque pour le SYSVOL"
     Initialize-Disk -Number $DiskSYSVOL
-    New-Partition -DiskNumber $DiskSYSVOL -DriveLetter S -Size 4GB
+    New-Partition -DiskNumber $DiskSYSVOL -DriveLetter S -UseMaximumSize
     Format-Volume -DriveLetter S -FileSystem NTFS -Confirm:$false -NewFileSystemLabel SYSVOL
 }
 
 
 function AD
 {
-    $Rename = Read-Host "Indiquez un nouveau nom pour le poste"
-    Rename-Computer -NewName $Rename
     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
     $NameNetBIOS = Read-Host "Nommez le NETBIOS"
     $NameDomain = Read-Host "Nommez le domaine"
@@ -43,7 +41,7 @@ function AD
 
 function ReverseZone
 {
-    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
+    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table #?Liste les cartes réseaux et formate la liste pour montrer la description, le numéro de l'index et l'IP associée
     $DNSInterface = Read-Host "Choisir le numero d`'interface"
     $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
     Get-DNSClientServerAddress -InterfaceIndex $DNSInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
@@ -54,19 +52,18 @@ function ReverseZone
     ipconfig /registerdns
 }
 
-function DHCP
+function DHCP #? Installation de la feature DHCP
 {
-    #Installation de la feature DHCP
     Install-WindowsFeature DHCP -IncludeManagementTools
     #Declaration des variables
-    $Pool = Read-Host "Saisir le nom de l"etendue"
-    $FirstIP = Read-Host "Saisir la premiere adresse attribuable de l"etendue"
-    $LastIP = Read-Host "Saisir la derniere adresse attribuable de l"etendue"
-    $PoolMask = Read-Host "Saisir le masque sous-reseau de l"etendue"
-    $DHCPGateway = Read-Host "Saisir la passerelle de l"etendue"
-    $NetworkID = Read-Host "Saisir l"IP du reseau de l"etendue" #Finit par 0
-    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table 
-    $SelectNIC = Read-Host "Saisir le numéro de l"interface"
+    $Pool = Read-Host "Saisir le nom de l`'etendue"
+    $FirstIP = Read-Host "Saisir la premiere adresse attribuable de l`'etendue"
+    $LastIP = Read-Host "Saisir la derniere adresse attribuable de l`'etendue"
+    $PoolMask = Read-Host "Saisir le masque sous-reseau de l`'etendue"
+    $DHCPGateway = Read-Host "Saisir la passerelle de l`'etendue"
+    $NetworkID = Read-Host "Saisir l`'IP du reseau de l`'etendue" #Finit par 0
+    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
+    $SelectNIC = Read-Host "Saisir le numéro de l`'interface"
     #$DNSIP = Get-DnsClientServerAddress -InterfaceIndex $SelectNIC -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses
     $DomainID = (Get-ADDomain).DNSRoot
     $FQDN = (Get-ADDomain).InfrastructureMaster
@@ -80,11 +77,10 @@ function DHCP
 
 function JoinAsDC
 {
-    $DomainName = (Resolve-dnsname -name redlabs.fr).name
-
     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
 
     Import-Module ADDSDeployment
+    $DomainName = Read-Host "Nommer le domaine"
     Install-ADDSDomainController `
     -NoGlobalCatalog:$false `
     -CreateDnsDelegation:$false `
@@ -100,89 +96,129 @@ function JoinAsDC
     -Force:$true `
 }
 
-function JoinADAsUser
+function JoinADAsUser #? Fonction pour rejoindre le domaine en tant qu'utilisateur
 {
-    $DomainName = Read-Host "Veuillez nommer le domaine"
-    #$Rename = Read-Host "Indiquez un nouveau nom pour le poste"
-    $DomainDNS = (Resolve-dnsname -name $DomainName).name | Sort-object -Unique
-    #Rename-Computer -NewName $Rename
-    Add-Computer -Domain $DomainDNS -Restart
+    $DomainName = Read-Host "Nommer le domaine"
+    $Credentials = "Administrateur"
+
+    Add-Computer -Domain $DomainName -Restart -Credential $Credentials
 }
-
-#TODO Automatiser lecteurs dans variable, boucle foreach ou elsif pour le nombre de dossiers dans les Files system
-function FSDFS
+function FSDFS #? Fonction pour installer les rôles Serveur de Fichier + DFS sur les 4 Serveurs (DC1, DC2, FS1, FS2), crée les DFS Root sur les DC et les partage, les dossiers à répliquer et les partages sur les SF, et crée la réplication entre les deux SF
 {
-
-    Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
-    Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
-    New-Item -ItemType Directory -Path "C:\DFSRoot\Partage"
-    New-SmbShare -Name "Partage" -Path "C:\DFSRoot\Partage"
-
+    #!Requiert 2 contrôleurs de domaine et deux serveurs de fichier pour fonctionner
     $FirstDC = Read-Host "Veuillez entrer le nom du premier DC"
     $SecondDC = Read-Host "Veuillez entrer le nom du second DC"
     $FirstFS = Read-Host "Veuillez entrer le nom du premier FS"
     $SecondFS = Read-Host "Veuillez entrer le nom du second FS"
-    $ShareRoot = Read-Host "Saisir le nom du domaine" #? Ici on renseigne le domaine, ça fait partie de l'espace de nom
-    $NameSpace = Read-Host "Saisir le nom du partage" #? Exemple: Partage$, Share$, etc..
-    $PathDC1 = "\\$FirstDC\$NameSpace" #? Combinaison des deux variable
-    $PathDC2 = "\\$SecondDC\$NameSpace" #? Combinaison des deux variable
+    $DomainName = (Get-ADDomain).dnsroot
+    $NameSpace = Read-Host "Saisir le nom du partage"
+    $PathDC1 = "\\$FirstDC\$NameSpace"
+    $PathDC2 = "\\$SecondDC\$NameSpace"
     $PathFS1 = "\\$FirstFS\$NameSpace"
     $PathFS2 = "\\$SecondFS\$NameSpace"
-    $DFSRoot = "\\$ShareRoot\$NameSpace" #?
-    $Folders = @("SERVICES","COMMUN","PERSO")
+    $DFSRoot = "\\$DomainName\$NameSpace"
+    Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
+    Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
+    New-Item -ItemType Directory -Path "C:\DFSRoot\$NameSpace"
+    New-SmbShare -Name $NameSpace -Path "C:\DFSRoot\$NameSpace"
 
     Invoke-Command -ComputerName $SecondDC -ScriptBlock {
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
-        New-Item -ItemType Directory -Path "C:\DFSRoot\Partage"
-        New-SmbShare -Name "Partage" -Path "C:\DFSRoot\Partage"
+        $NameSpace = Read-Host "Saisir le nom du partage"
+        New-Item -ItemType Directory -Path "C:\DFSRoot\$NameSpace"
+        New-SmbShare -Name $NameSpace -Path "C:\DFSRoot\$NameSpace"
     }
 
-    Invoke-Command -ComputerName $FirstFS -ScriptBlock {
+    $CaptureLetterFS2 = Invoke-Command -ComputerName $FirstFS -ScriptBlock {
 
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
 
-        Get-Disk | Format-Table
-        $Disk = Read-host "Selectionnner un disque a initialiser"
+        Get-Disk | Out-Host
 
-        Initialize-Disk -Number $Disk
+        $Disk = Read-Host "Selectionnner un disque a initialiser"
+        Initialize-Disk -Number $Disk | Out-Host
 
-        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
+        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name = 'Size(GB)'; Expression = {'{0:N2}' -f ($_.Size / 1GB) } } | Out-Host
         $Letter = Read-Host "Selectionner la lettre a attribuer"
 
-        New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
-        Format-Volume -DriveLetter $Letter -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
+        New-Partition -DiskNumber $Disk -DriveLetter $Letter -UseMaximumSize | Out-Host
+        Format-Volume -DriveLetter $Letter -FileSystem NTFS -Confirm:$false -NewFileSystemLabel "Files" | Out-Host
 
-        'COMMUN','SERVICES','PERSO' | Foreach-Object {New-Item -path "L:\Files\$_"  -ItemType 'Directory'}
+        Get-Volume $Letter | Select-Object -Property DriveLetter
 
-        New-SmbShare -Name 'Partage' -Path "L:\Files\"
-        }
+        $Compteur = 0
 
+        do {
+            $Compteur++
 
-    Invoke-Command -ComputerName $SecondFS -ScriptBlock {
+            if ($Compteur -eq 1) {
+                $NewFolder = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
+            }
+            else {
+                $NewFolder = "yes"
+            }
+            if ($NewFolder -eq "yes" -or $NewFolder -eq "y" -or $NewFolder -eq "oui") {
+                $NewFolderName = Read-Host "Nommer le nouveau dossier"
+                New-Item -ItemType Directory -Path "$($Letter):\Files\$NewFolderName" | Out-Host
+                $Loop = Read-Host "Voulez-vous créer d'autres dossiers ?"
+            }
+            elseif ($NewFolder -eq "no" -or $NewFolder -eq "n") {
+                Write-Host "Fin de la création"
+            }
+        } until ($Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non")
+
+        $ShareName = Read-Host "Nommer le partage"
+        New-SmbShare -Name $ShareName -Path "$($Letter):\Files\" | Out-Host
+    }
+
+    $CaptureLetterFS2 = Invoke-Command -ComputerName $SecondFS -ScriptBlock {
 
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
 
-        Get-Disk | Format-Table
-        $Disk = Read-host "Selectionnner un disque a initialiser"
+        Get-Disk | Out-Host
 
-        Initialize-Disk -Number $Disk
+        $Disk = Read-Host "Selectionnner un disque a initialiser"
+        Initialize-Disk -Number $Disk | Out-Host
 
-        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name="Size(GB)"; Expression={"{0:N2}" -f ($_.Size / 1GB)}}
-        $lecteur = Read-Host "Selectionner la lettre a attribuer"
+        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name = 'Size(GB)'; Expression = {'{0:N2}' -f ($_.Size / 1GB) } } | Out-Host
+        $Letter = Read-Host "Selectionner la lettre a attribuer"
 
-        New-Partition -DiskNumber $Disk -DriveLetter $lecteur -UseMaximumSize
-        Format-Volume -DriveLetter $lecteur -FileSystem NTFS -Confirm:$false -NewFileSystemLabel DATA
+        New-Partition -DiskNumber $Disk -DriveLetter $Letter -UseMaximumSize | Out-Host
+        Format-Volume -DriveLetter $Letter -FileSystem NTFS -Confirm:$false -NewFileSystemLabel "Files" | Out-Host
 
-        'COMMUN','SERVICES','PERSO' | Foreach-Object {New-Item -path "L:\Files\$_"  -ItemType 'Directory'}
+        Get-Volume $Letter | Select-Object -Property DriveLetter
 
-        New-SmbShare -Name 'Partage' -Path "L:\Files\"
+        $Compteur = 0
+
+        do {
+            $Compteur++
+
+            if ($Compteur -eq 1) {
+                $NewFolder = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
+            }
+            else {
+                $NewFolder = "yes"
+            }
+            if ($NewFolder -eq "yes" -or $NewFolder -eq "y" -or $NewFolder -eq "oui") {
+                $NewFolderName = Read-Host "Nommer le nouveau dossier"
+                New-Item -ItemType Directory -Path "$($Letter):\Files\$NewFolderName" | Out-Host
+                $Loop = Read-Host "Voulez-vous créer d'autres dossiers ?"
+            }
+            elseif ($NewFolder -eq "no" -or $NewFolder -eq "n") {
+                Write-Host "Fin de la création"
+            }
+        } until ($Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non")
+
+        $ShareName = Read-Host "Nommer le partage"
+        New-SmbShare -Name $ShareName -Path "$($Letter):\Files\" | Out-Host
     }
 
     New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $PathDC1
     New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $PathDC2
+    $Folders = @(Get-ChildItem -Path "\\$FirstFS\Files\" | Select-Object -Property Name)
     $Folders | ForEach-Object {
     New-DfsnFolder -Path "$DFSRoot\$_" -TargetPath "$PathFS1\$_" -EnableTargetFailback $true -Description 'Folder for legacy software.'
     New-DfsnFolderTarget -Path "$DFSRoot\$_" -TargetPath "$PathFS2\$_"
@@ -191,10 +227,11 @@ function FSDFS
         New-DfsReplicationGroup -GroupName $_ -Confirm:$false | New-DFSReplicatedFolder -Foldername $_
         Add-DfsrMember -GroupName $_ -ComputerName $FirstFS,$SecondFS -Confirm:$false
         Add-DfsrConnection -GroupName $_ -SourceComputerName $FirstFS -DestinationComputerName $SecondFS -Confirm:$false
-        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "L:\Files\$_" -ComputerName $FirstFS -PrimaryMember $True -Confirm:$false -Force
-        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "L:\Files\$_" -ComputerName $SecondFS $True -Confirm:$false -Force
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($CaptureLetterFS1.DriveLetter)\Files\$_" -ComputerName $FirstFS -PrimaryMember $True -Confirm:$false -Force
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($CaptureLetterFS2.DriveLetter)\Files\$_" -ComputerName $SecondFS $True -Confirm:$false -Force
     }
 }
+
 
 
 

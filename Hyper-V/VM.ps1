@@ -132,6 +132,62 @@ function NewSwitch
         New-VMSwitch -Name $SwitchName -NetAdapterName $NICName
     }
 }
+function EPSIC {
+    function Creds {
+            Write-Host "Ne peut être défini qu'une fois, si une erreur a été faite, faire Remove-Variable -nom [nom] -Force" -ForegroundColor Red
+            $LabUserComp = Read-Host "Nom de l'utilisateur Local"
+            New-Variable -Name LabUser -Option AllScope,ReadOnly -Value $LabUserComp
+            $LabDomainUserComp = Read-Host "Nom de l'utilisateur du domaine (domaine.x\user ou user@domaine.x)"
+            New-Variable -Name LabDomainUser -Option AllScope,ReadOnly -Value $LabDomainUserComp
+            $LabPwdComp = Read-Host "Mot de passe de l'utilisateur"
+            New-Variable -Name LabPwd -Option AllScope,ReadOnly -Value $LabPwdComp
+            $LabPwdSecureComp = ConvertTo-SecureString $LabPwd -AsPlainText -Force
+            New-Variable -Name LabPwdSecure -Option AllScope,ReadOnly -Value $LabPwdSecureComp
+            $LabDomainCredentialsComp = New-Object System.Management.Automation.PSCredential($LabDomainUser,$LabPwdSecure)
+            New-Variable -Name LabDomainCredentials -Option AllScope,ReadOnly -Value $LabDomainCredentialsComp
+            $LabLocalCredentialsComp = New-Object System.Management.Automation.PSCredential($LabUser,$LabPwdSecure)
+            New-Variable -Name LabLocalCredentials -Option AllScope,ReadOnly -Value $LabLocalCredentialsComp
+            Remove-Variable -Name LabUserComp,LabDomainUserComp,LabPwdComp,LabDomainCredentialsComp,LabLocalCredentialsComp
+    }
+    function EPS{
+        Get-VM | Select-Object Name | Format-Table
+        $VM = Read-Host = "Choisir la VM pour la session PowerShell Direct"
+        $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
+        if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale"){
+            Enter-PSSession -VMName $VM -Credential $LabCredentials
+        }
+        elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine"){
+            Enter-PSSession -VMName $VM -Credential $LabDomainCredentials
+        }
+    }
+    function IC {
+        Get-VM | Select-Object Name | Format-Table
+        $VM = Read-Host "Choisir la VM pour la session PowerShell Direct"
+        $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
+        if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale"){
+            $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
+            Get-ChildItem -Path $Location | Select-Object -Property Name | Out-Host
+            $Script = Read-Host "Choisir le script à éxecuter.."
+            Invoke-Command -VMName $VM -FilePath "$Location\$Script" -Credential $LabLocalCredentials
+        }
+        elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine"){
+            $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
+            Get-ChildItem -Path $Location | Select-Object -Property Name | Out-Host
+            $Script = Read-Host "Choisir le script à éxecuter.."
+            Invoke-Command -VMName $VM -FilePath "$Location\$Script" -Credential $LabDomainCredentials
+        }
+    }
+    Write-Host "1: Setup des credentials"
+    Write-Host "2: Enter-PSSession"
+    Write-Host "3: Invoke-Command"
+    $EPSIC = Read-Host "Faire votre choix"
+    switch ($EPSIC) {
+        1 {Creds}
+        2 {EPS}
+        3 {IC}
+    }
+}
+
 function pause($message="Appuyez sur une touche pour continuer...")
 {
     Write-Host -NoNewLine $message
@@ -158,6 +214,7 @@ function console
     Write-Host "8: Supprimer une VM"
     Write-Host "9: Connecter un Switch à une VM"
     Write-Host "10: Créer un Switch"
+    Write-Host "11: EPSIC" -ForegroundColor DarkMagenta
     Write-Host "Q: Quitter le Script"
 
     $choix = Read-Host "Choisissez votre destin"
@@ -173,6 +230,7 @@ function console
             8 {delete;pause;console}
             9 {ConnectSwitch;pause;console}
             10 {NewSwitch;pause;console}
+            11 {EPSIC;pause;exit}
             Q {exit}
             default {console}
         }
