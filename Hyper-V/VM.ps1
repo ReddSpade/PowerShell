@@ -1,6 +1,6 @@
 #!TODO Ajouter la création des groupes, attribution des utilisateurs aux groupes, les droits des groupes sur les partages
 #Requires -Modules Hyper-V
-$global:VMPath = (Get-VMHost).VirtualMachinePath
+$script:VMPath = (Get-VMHost).VirtualMachinePath
 
 function NewVM
 {
@@ -51,7 +51,7 @@ function NewVM
     Copy-Item -Path "$VMPath\Sysprep\WIN10SYSPREP.vhdx" -Destination $VMPath\$VMName\$vmname.vhdx
     New-VM -Name $VMName -MemoryStartupBytes "$($GB)GB" -Path $VMPath -Generation $Gen
     Add-VMHardDiskDrive -VMName $VMName -path $VMPath\$VMName\$VMName.vhdx
-    Set-VM -name $VMName -ProcessorCount $CoreNumber -CheckpointType Disabled
+    Set-VM -Name $VMName -ProcessorCount $CoreNumber -CheckpointType Disabled
     }
 
     Get-VM | Select-Object Name,State | Out-Host
@@ -206,33 +206,23 @@ function NewSwitch
 }
 function EPSIC {
     function Creds {
-        #TODO finir les @() afin de condenser dans une ligne les var
-            Write-Host "Ne peut être défini qu'une fois, si une erreur a été faite, faire Remove-Variable -nom [nom] -Force" -ForegroundColor Red
-            $Comp = @("$LabLocalUserComp","$LabDomainUserComp","$LabPwdComp","$LabPwdSecureComp","$LabDomainCredentialsComp","$LabLocalCredentialsComp")
-            $Var = @("LabLocalUser","LabDomainUser","LabPwd","LabPwdSecure","LabDomainCredentials","LabLocalCredentials")
-            $LabLocalUserComp = Read-Host "Nom de l'utilisateur Local"
-            New-Variable -Name LabLocalUser -Option AllScope,ReadOnly -Value $LabLocalUserComp
-            $LabDomainUserComp = Read-Host "Nom de l'utilisateur du domaine (domaine.x\user ou user@domaine.x)"
-            New-Variable -Name LabDomainUser -Option AllScope,ReadOnly -Value $LabDomainUserComp
-            $LabPwdComp = Read-Host "Mot de passe de l'utilisateur"
-            New-Variable -Name LabPwd -Option AllScope,ReadOnly -Value $LabPwdComp
-            $LabPwdSecureComp = ConvertTo-SecureString $LabPwd -AsPlainText -Force
-            New-Variable -Name LabPwdSecure -Option AllScope,ReadOnly -Value $LabPwdSecureComp
-            $LabDomainCredentialsComp = New-Object System.Management.Automation.PSCredential($LabDomainUser,$LabPwdSecure)
-            New-Variable -Name LabDomainCredentials -Option AllScope,ReadOnly -Value $LabDomainCredentialsComp
-            $LabLocalCredentialsComp = New-Object System.Management.Automation.PSCredential($LabLocalUser,$LabPwdSecure)
-            New-Variable -Name LabLocalCredentials -Option AllScope,ReadOnly -Value $LabLocalCredentialsComp
-            Remove-Variable -Name LabUserComp,LabDomainUserComp,LabPwdComp,LabDomainCredentialsComp,LabLocalCredentialsComp
+        Write-Host 'Ne peut être défini qu''une fois, si une erreur a été faite, faire Remove-Variable -Name LLC,LDC' -ForegroundColor Red
+            $LabLocalUserTemp = Read-Host "Utilisateur Local"
+            $LabDomainUserTemp = Read-Host "Utilisateur du domaine (domaine.x\user or user@domaine.x)"
+            $LabPwdTemp = Read-Host "Mot de passe utilisateur"
+            $LabPwdSecureTemp = ConvertTo-SecureString $LabPwdTemp -AsPlainText -Force
+            $Script:LLC = [PSCredential]::new($LabLocalUserTemp,$LabPwdSecureTemp)
+            $Script:LDC = [PSCredential]::new($LabDomainUserTemp,$LabPwdSecureTemp)
     }
     function EPS{
         Get-VM | Select-Object Name | Format-Table
-        $VM = Read-Host = "Choisir la VM pour la session PowerShell Direct"
+        $VM = Read-Host "Choisir la VM pour la session PowerShell Direct"
         $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
         if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale"){
-            Enter-PSSession -VMName $VM -Credential $LabCredentials
+            Enter-PSSession -VMName $VM -Credential $LLC
         }
         elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine"){
-            Enter-PSSession -VMName $VM -Credential $LabDomainCredentials
+            Enter-PSSession -VMName $VM -Credential $LDC
         }
     }
     function IC {
@@ -243,13 +233,13 @@ function EPSIC {
             $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
             Get-ChildItem -Path $Location | Select-Object -Property Name | Out-Host
             $Script = Read-Host "Choisir le script à éxecuter.."
-            Invoke-Command -VMName $VM -FilePath "$Location\$Script" -Credential $LabLocalCredentials
+            Invoke-Command -VMName $VM -FilePath "$Location\$Script" -Credential $LLC
         }
         elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine"){
             $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
             Get-ChildItem -Path $Location | Select-Object -Property Name | Out-Host
             $Script = Read-Host "Choisir le script à éxecuter.."
-            Invoke-Command -VMName $VM -FilePath "$Location\$Script" -Credential $LabDomainCredentials
+            Invoke-Command -VMName $VM -FilePath "$Location\$Script" -Credential $LDC
         }
     }
     Write-Host "1: Setup des credentials"
@@ -297,7 +287,7 @@ function console
             4 {StateManagement;pause;console}
             5 {ConnectSwitch;pause;console}
             6 {NewSwitch;pause;console}
-            7 {EPSIC;pause;exit}
+            7 {EPSIC;pause;break}
             Q {exit}
             default {console}
         }
