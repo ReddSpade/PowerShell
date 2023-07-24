@@ -1,194 +1,162 @@
 #!TODO Ajouter la création des groupes, attribution des utilisateurs aux groupes, les droits des groupes sur les partages
 #Requires -Modules Hyper-V
-$script:VMPath = (Get-VMHost).VirtualMachinePath
+function NewVM {
+    function WS22CORE {
+        [CmdletBinding()]
+        param(
+        [System.Object]$VMPath = ((Get-VMHost).VirtualMachinePath),
+        [String]$VMName = (Read-Host "Nom de la VM ?"),
+        [Int]$VMRAM = (Read-Host "Quantité de ram de la VM ?"),
+        [ValidateSet(1,2)][Int]$VMGen = (Read-Host "Génération 1 ou 2 ?"),
+        [int]$VMCoreNumber = (Read-Host  "Combien de coeur pour la VM ?")
+        )
+        New-Item -ItemType Directory -Name $VMName -Path $VMPath
 
-function NewVM
-{
-    function WS22ORE
-    {
-        #Variables d'information
-    $VMName = Read-Host "Quel sera le nom de la VM ?"
-    $VMRAM = Read-Host "Quel sera la quantité de RAM de la VM ?"
-    $GB = Invoke-Expression $VMRAM
-    [int32]$Gen = Read-Host "Génération 1 ou 2 ?"
-    [int32]$CoreNumber = Read-Host  "Combien de coeur pour la VM ?"
-
-    New-Item -ItemType Directory -Name $VMName -Path $VMPath
-
-    Copy-Item -Path "$VMPath\Sysprep\WIN22CORESYSPREP.vhdx" -Destination $VMPath\$VMName\$vmname.vhdx
-    New-VM -Name $VMName -MemoryStartupBytes "$($GB)GB" -Path $VMPath -Generation $Gen
-    Add-VMHardDiskDrive -VMName $VMName -path $VMPath\$VMName\$VMName.vhdx
-    Set-VM -name $VMName -ProcessorCount $CoreNumber -CheckpointType Disabled
+        Copy-Item -Path "$HVMPath\Sysprep\WIN22CORESYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
+        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $VMPath -Generation $VMGen
+        Add-VMHardDiskDrive -VMName $VMName -path $HVMPath\$VMName\$VMName.vhdx
+        Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
     }
-    function WS22GUI
-    {
-        #Variables d'information
-    $VMName = Read-Host "Quel sera le nom de la VM ?"
-    $VMRAM = Read-Host "Quel sera la quantité de RAM de la VM ?"
-    $GB = Invoke-Expression $VMRAM
-    [int32]$Gen = Read-Host "Génération 1 ou 2 ?"
-    [int32]$CoreNumber = Read-Host  "Combien de coeur pour la VM ?"
+    function WS22GUI {
+        [CmdletBinding()]
+        param(
+        [System.Object]$HVMPath = ((Get-VMHost).VirtualMachinePath),
+        [String]$VMName = (Read-Host "Nom de la VM ?"),
+        [Int]$VMRAM = (Read-Host "Quantité de ram de la VM ?"),
+        [ValidateSet(1,2)][Int]$VMGen = (Read-Host "Génération 1 ou 2 ?"),
+        [int]$VMCoreNumber = (Read-Host  "Combien de coeur pour la VM ?")
+        )
+        New-Item -ItemType Directory -Name $VMName -Path $VMPath
 
-    New-Item -ItemType Directory -Name $VMName -Path $VMPath
-
-    Copy-Item -Path "$VMPath\Sysprep\WIN22GUISYSPREP.vhdx" -Destination $VMPath\$VMName\$vmname.vhdx
-    New-VM -Name $VMName -MemoryStartupBytes "$($GB)GB" -Path $VMPath -Generation $Gen
-    Add-VMHardDiskDrive -VMName $VMName -path $VMPath\$VMName\$VMName.vhdx
-    Set-VM -name $VMName -ProcessorCount $CoreNumber -CheckpointType Disabled
+        Copy-Item -Path "$HVMPath\Sysprep\WIN22GUISYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
+        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $VMPath -Generation $VMGen
+        Add-VMHardDiskDrive -VMName $VMName -path $HVMPath\$VMName\$VMName.vhdx
+        Set-VM -name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
     }
 
-    function W10RSAT
-    {
-        #Variables d'information
-    $VMName = Read-Host "Quel sera le nom de la VM ?"
-    $VMRAM = Read-Host "Quel sera la quantité de RAM de la VM ?"
-    $GB = Invoke-Expression $VMRAM
-    [int32]$Gen = Read-Host "Génération 1 ou 2 ?"
-    [int32]$CoreNumber = Read-Host  "Combien de coeur pour la VM ?"
+    function W10RSAT {
+        [CmdletBinding()]
+        param(
+        [System.Object]$HVMPath = ((Get-VMHost).VirtualMachinePath),
+        [String]$VMName = (Read-Host "Nom de la VM ?"),
+        [Int]$VMRAM = (Read-Host "Quantité de ram de la VM ?"),
+        [ValidateSet(1,2)][Int]$VMGen = (Read-Host "Génération 1 ou 2 ?"),
+        [Int]$VMCoreNumber = (Read-Host  "Combien de coeur pour la VM ?")
+        )
+        New-Item -ItemType Directory -Name $VMName -Path $VMPath
 
-    New-Item -ItemType Directory -Name $VMName -Path $VMPath
-
-    Copy-Item -Path "$VMPath\Sysprep\WIN10SYSPREP.vhdx" -Destination $VMPath\$VMName\$vmname.vhdx
-    New-VM -Name $VMName -MemoryStartupBytes "$($GB)GB" -Path $VMPath -Generation $Gen
-    Add-VMHardDiskDrive -VMName $VMName -path $VMPath\$VMName\$VMName.vhdx
-    Set-VM -Name $VMName -ProcessorCount $CoreNumber -CheckpointType Disabled
+        Copy-Item -Path "$HVMPath\Sysprep\WIN10SYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
+        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $VMPath -Generation $Gen
+        Add-VMHardDiskDrive -VMName $VMName -path $HVMPath\$VMName\$VMName.vhdx
+        Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
     }
 
     Get-VM | Select-Object Name,State | Out-Host
     $Title = "Menu de création de VM"
     $Prompt = "Faire choix"
-    $WS2022SRV = New-Object System.Management.Automation.Host.ChoiceDescription "Windows Server 2022 &Core","Crée une VM qui contient Windows Server 2022 (Core)"
-    $WS2022GUI = New-Object System.Management.Automation.Host.ChoiceDescription "Windows Server 2022 &Graphique","Crée une VM qui contient Windows Server 2022 Experience de Bureau (GUI)"
-    $W10RSAT = New-Object System.Management.Automation.Host.ChoiceDescription "Windows 10 &RSAT", "Crée une VM qui contient Windows 10 avec les outils RSAT pour le management de Serveurs"
-    $options = [System.Management.Automation.Host.ChoiceDescription[]]($WS2022SRV, $WS2022GUI, $W10RSAT)
+    $WS2022SRV = [System.Management.Automation.Host.ChoiceDescription]::New("Windows Server 2022 &Core","Crée une VM qui contient Windows Server 2022 (Core)")
+    $WS2022GUI = [System.Management.Automation.Host.ChoiceDescription]::New("Windows Server 2022 &Graphique","Crée une VM qui contient Windows Server 2022 Experience de Bureau (GUI)")
+    $W10RSAT = [System.Management.Automation.Host.ChoiceDescription]::New("Windows 10 &RSAT", "Crée une VM qui contient Windows 10 avec les outils RSAT pour le management de Serveurs")
+    $Options = [System.Management.Automation.Host.ChoiceDescription[]]($WS2022SRV, $WS2022GUI, $W10RSAT)
 
-    $Choice = $host.UI.PromptForChoice($Title, $Prompt, $options, 0)
-    Switch ($Choice)
-    {
-        0 {WS22ORE}
+    $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
+    Switch ($Choice) {
+        0 {WS22CORE}
         1 {WS22GUI}
         2 {W10RSAT}
     }
 }
 
-function DCDisk{
+
+function DCDisk {
     Get-VM | Select-Object Name | Format-Table
-    Pause
+    $HVMPath = (Get-vmhost).VirtualMachinePath
     $VMNameAdd = Read-Host "Choisir la VM pour rajout des disques durs"
-    $VMFullPath = "$VMPath\$VMNameAdd"
-
-    New-VHD -Path $VMFullPath"\bdd.vhdx" -SizeBytes 4196MB
-    New-VHD -Path $VMFullPath"\logs.vhdx" -SizeBytes 4196MB
-    New-VHD -Path $VMFullPath"\sysvol.vhdx" -SizeBytes 4196MB
-
-    Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path $VMFullPath"\bdd.vhdx"
-    Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path $VMFullPath"\logs.vhdx"
-    Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path $VMFullPath"\sysvol.vhdx"
+    $VMFullPath = "$HVMPath$VMNameAdd"
+    $VHDName = @("\bdd.vhdx","\logs.vhdx","\sysvol.vhdx")
+    $VHDName | ForEach-Object { New-VHD -Path $VMFullPath$_ -SizeBytes 4196MB }
+    $VHDName | Foreach-Object { Add-VMHardDiskDrive -VMName $VMNameAdd -Path $VMFullPath$_ -ControllerType SCSI -ControllerNumber 0 }
 }
-function DiskAD
-{
+function DiskAD {
     Get-VM | Select-Object Name |Format-Table
-    Pause
     $VMNameAdd = Read-Host "Choisir la VM pour rajout des disques durs"
     $VHDSize = Read-Host "Veuillez entrer une taille en GB"
     $VHDName = Read-Host "Veuillez nommer votre disque"
-    $GB = Invoke-Expression $VHDSize
-    New-VHD -Path "$VMPath$VMNameAdd\$VHDName.vhdx" -SizeBytes "$($GB)GB"
+    New-VHD -Path "$VMPath$VMNameAdd\$VHDName.vhdx" -SizeBytes "$($VHDSize)GB"
     Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path "$VMPath$VMNameAdd\$VHDName.vhdx"
 }
-function StateManagement
-{
-    function On
-    {
+function StateManagement {
+    function On {
         Get-VM | Select-Object Name,State | Out-Host
         $Title = "Démarrer toute les VM ou une seule ?"
         $Prompt = "Faire choix"
-        $All = New-Object System.Management.Automation.Host.ChoiceDescription "&Toutes","Lance le démarrage de chaque VM"
-        $Select = New-Object System.Management.Automation.Host.ChoiceDescription "&Selection","Sélection de la VM à démarrer"
-
+        $All = [System.Management.Automation.Host.ChoiceDescription]::New("&Toutes","Lance le démarrage de chaque VM")
+        $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Selection","Sélection de la VM à démarrer")
         $options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
-
-        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $options, 1)
-        Switch ($Choice)
-        {
+        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
+        Switch ($Choice) {
             0 {Start-VM -VMName *}
-            1 {$VMSelect = Read-Host "Choisir la VM à démarrer"
-            Start-VM -name $VMSelect}
+            1 {$VMSelect = Get-VM | Select-Object Name | Out-GridView -PassThru
+               Start-VM -Name $VMSelect.Name}
         }
     }
-    function Off
-    {
+    function Off {
         Get-VM | Select-Object Name,State | Out-Host
         $Title = "Démarrer toute les VM ou une seule ?"
         $Prompt = "Faire choix"
-        $All = New-Object System.Management.Automation.Host.ChoiceDescription "&Toutes","Arrêter toutes les VM"
-        $Select = New-Object System.Management.Automation.Host.ChoiceDescription "&Selection","Sélection de la VM à arrêter"
-
-        $options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
-
-        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $options, 1)
-        Switch ($Choice)
-        {
+        $All = [System.Management.Automation.Host.ChoiceDescription]::New("&Toutes","Arrêter toutes les VM")
+        $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Selection","Sélection de la VM à arrêter")
+        $Options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
+        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
+        Switch ($Choice) {
             0 {Stop-VM -VMName *}
             1 {$VMSelect = Read-Host "Choisir la VM à arrêter"
             Stop-VM -name $VMSelect}
         }
     }
 
-    function Remove
-    {
+    function Remove {
         Get-VM | Select-Object Name | Format-Table
         $Title = "Démarrer toute les VM ou une seule ?"
         $Prompt = "Faire choix"
-        $All = New-Object System.Management.Automation.Host.ChoiceDescription "&Toutes","Lance la suppression de chaque VM"
-        $Select = New-Object System.Management.Automation.Host.ChoiceDescription "&Selection","Sélection de la VM à supprimer"
-
-        $options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
-
-        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $options, 1)
-        Switch ($Choice)
-        {
+        $All = [System.Management.Automation.Host.ChoiceDescription]::New("&Toutes","Lance la suppression de chaque VM")
+        $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Selection","Sélection de la VM à supprimer")
+        $Options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
+        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
+        Switch ($Choice) {
             0 { $VMLitteralPath = Get-VM | Select-Object -Property Path
                 Stop-VM -VMName * -Force -WarningAction Ignore
                 Remove-VM -Name * -Force
                 Remove-Item -Path ($VMLitteralPath).Path -Recurse -Force
-                Write-Host "Les VM ont toute étées supprimées"
+                Write-Host "Les VM ont toutes étées supprimées"
             }
-            1 { $VMSelect = Read-Host "Choisir la VM a supprimer"
-                $VMLitteralPath = Get-VM | Where-Object -Property name -eq $VMSelect | Select-Object -Property Path
-                Stop-VM -Name $VMSelect -Force -WarningAction Ignore
-                Remove-VM -Name $VMSelect -Force
+            1 { $VMName = Get-VM | Where-Object -Property name -eq $VMSelect | Select-Object -Property Path | Out-GridView -PassThru
+                Stop-VM -Name $VMName.Name -Force -WarningAction Ignore
+                Remove-VM -Name $VMSelect.Name -Force
                 Remove-Item -Path ($VMLitteralPath).Path -Recurse -Force
             }
         }
     }
     Get-VM | Select-Object Name | Format-Table
-        $Title = "Menu de management de l'état des VM"
-        $Prompt = "Faire choix"
-        $On = New-Object System.Management.Automation.Host.ChoiceDescription "&Démarrage","Menu de démarrage des VM"
-        $Off = New-Object System.Management.Automation.Host.ChoiceDescription "&Arrêt","Menu d'arrêt des VM"
-        $Remove = New-Object System.Management.Automation.Host.ChoiceDescription "&Suppression","Menu de suppression des VM"
-
-        $options = [System.Management.Automation.Host.ChoiceDescription[]]($On, $Off, $Remove)
-
-        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $options, 1)
-        Switch ($Choice)
-        {
-        0 {On}
-        1 {Off}
-        2 {Remove}
-        }
+    $Title = "Menu de management de l'état des VM"
+    $Prompt = "Faire choix"
+    $On = [System.Management.Automation.Host.ChoiceDescription]::New("&Démarrage","Menu de démarrage des VM")
+    $Off = [System.Management.Automation.Host.ChoiceDescription]::New("&Arrêt","Menu d'arrêt des VM")
+    $Remove = [System.Management.Automation.Host.ChoiceDescription]::New("&Suppression","Menu de suppression des VM")
+    $options = [System.Management.Automation.Host.ChoiceDescription[]]($On, $Off, $Remove)
+    $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
+    Switch ($Choice) {
+    0 {On}
+    1 {Off}
+    2 {Remove}
+    }
 }
-function ConnectSwitch
-{
-    Get-VM | Select-Object Name, @{Name="SwitchName"; Expression={$_.NetworkAdapters | Select-Object -ExpandProperty SwitchName}} | Format-Table #Liste les machines virtuelles et les éventuels Switchs sur lesquelles elle sont connectées, [Get-VMNetworkAdapter * | Select-Object VMname,switchname | Format-Table] Serait une alterative, mais cette dernière fait une nouvelle ligne à chaque carte réseau présente sur une vm
-    $VMSelect = Read-Host "Choisir la VM à connecter au Switch"
-    Get-VMSwitch | Format-Table
-    $VMSwitch = Read-Host "Choisir le Switch cible"
-    Add-VMNetworkAdapter -Name "Carte Réseau" -SwitchName $VMSwitch -VMName $VMSelect
+function ConnectSwitch {
+    $VMSelect = Get-VM | Select-Object Name, @{Name="SwitchName"; Expression={$_.NetworkAdapters | Select-Object -ExpandProperty SwitchName}} | Out-Gridview -PassThru
+    $VMSwitch = Get-VMSwitch | Out-Gridview -PassThru
+    Add-VMNetworkAdapter -Name "Carte Réseau" -SwitchName $VMSwitch.Name -VMName $VMSelect.Name
 }
-function NewSwitch
-{
+function NewSwitch {
     Get-VMSwitch | Format-Table
     $choix = Read-Host "Switch Interne (Permet de communiquer avec l'hôte) Privé (Isolation complète) ou Externe (Accès WAN) ?"
     $SwitchName = Read-Host "Nommer le Switch"
@@ -214,20 +182,19 @@ function EPSIC {
             $Script:LLC = [PSCredential]::new($LabLocalUserTemp,$LabPwdSecureTemp)
             $Script:LDC = [PSCredential]::new($LabDomainUserTemp,$LabPwdSecureTemp)
     }
-    function EPS{
+    function EPS {
         Get-VM | Select-Object Name | Format-Table
-        $VM = Read-Host "Choisir la VM pour la session PowerShell Direct"
+        $VM = Get-VM | Select-Object Name | Out-GridView -PassThru
         $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
         if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale"){
-            Enter-PSSession -VMName $VM -Credential $LLC
+            Enter-PSSession -VMName $VM.Name -Credential $LLC
         }
         elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine"){
-            Enter-PSSession -VMName $VM -Credential $LDC
+            Enter-PSSession -VMName $VM.Name -Credential $LDC
         }
     }
     function IC {
-        Get-VM | Select-Object Name | Format-Table
-        $VM = Read-Host "Choisir la VM pour la session PowerShell Direct"
+        $VM = Get-VM | Select-Object Name | Out-GridView -PassThru
         $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
         if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale"){
             $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
@@ -253,14 +220,12 @@ function EPSIC {
     }
 }
 
-function pause($message="Appuyez sur une touche pour continuer...")
-{
+function pause ($message="Appuyez sur une touche pour continuer...") {
     Write-Host -NoNewLine $message
     $null = $Host.UI.RawUI.ReadKey("noecho,includeKeydown")
     Write-Host ""
 }
-function console
-{
+function console {
     Clear-Host
     Write-Host "#######################################################" -ForegroundColor Blue
     Write-Host "#                                                     #" -ForegroundColor Blue
@@ -279,8 +244,7 @@ function console
     Write-Host "Q: Quitter le Script"
 
     $choix = Read-Host "Choisissez votre destin"
-    switch ($choix)
-        {
+    switch ($choix) {
             1 {NewVM;pause;console}
             2 {DiskAD;pause;console}
             3 {DCDisk;pause;console}
