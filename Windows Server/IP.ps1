@@ -26,9 +26,15 @@ function SetIP
             $IPAdress = Read-Host "Veuillez entrer l'IP souhaitee"
             Remove-NetRoute -InterfaceIndex $SelectNIC -Confirm:$false
             Remove-NetIPAddress -InterfaceIndex $SelectNIC -Confirm:$false
-            #$Mask = Read-Host "Choisir le masque sous-reseau"
             $CIDR = Read-Host "Choisir le CIDR"
+            $choix = Read-Host "Appliquer un masque sous réseau ? (Y/N)"
+            if ($choix -eq "oui" -or $choix -eq "yes" -or $choix -eq "y") {
+            $Mask = Read-Host "Choisir le masque sous-reseau"
+            New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR -DefaultGateway $Mask
+            }
+            elseif ($choix -eq "no" -or $choix -eq "non" -or $choix -eq "n") {
             New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR
+            }
         }
         default {console}
 

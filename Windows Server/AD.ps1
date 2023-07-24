@@ -1,5 +1,4 @@
-function 3disksup #? Suite de commande pour définir les 3 disques pour les emplacements nécessaires à la création un contrôleur de domaine (SYSVOL, NTDS BDD, NTDS LOGS)
-{
+function 3disksup { #? Suite de commande pour définir les 3 disques pour les emplacements nécessaires à la création un contrôleur de domaine (SYSVOL, NTDS BDD, NTDS LOGS)
     Get-Disk | Out-Host
     $DiskBDD = Read-Host "Sélectionner un disque pour la BDD"
     Initialize-Disk -Number $DiskBDD
@@ -18,8 +17,7 @@ function 3disksup #? Suite de commande pour définir les 3 disques pour les empl
 }
 
 
-function AD
-{
+function AD {
     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
     $NameNetBIOS = Read-Host "Nommez le NETBIOS"
     $NameDomain = Read-Host "Nommez le domaine"
@@ -39,8 +37,7 @@ function AD
     -Force:$true
 }
 
-function ReverseZone
-{
+function ReverseZone {
     Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table #?Liste les cartes réseaux et formate la liste pour montrer la description, le numéro de l'index et l'IP associée
     $DNSInterface = Read-Host "Choisir le numero d`'interface"
     $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
@@ -52,8 +49,7 @@ function ReverseZone
     ipconfig /registerdns
 }
 
-function DHCP #? Installation de la feature DHCP
-{
+function DHCP { #? Installation de la feature DHCP 
     Install-WindowsFeature DHCP -IncludeManagementTools
     #Declaration des variables
     $Pool = Read-Host "Saisir le nom de l`'etendue"
@@ -75,8 +71,7 @@ function DHCP #? Installation de la feature DHCP
 
 }
 
-function JoinAsDC
-{
+function JoinAsDC {
     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
 
     Import-Module ADDSDeployment
@@ -96,15 +91,13 @@ function JoinAsDC
     -Force:$true `
 }
 
-function JoinADAsUser #? Fonction pour rejoindre le domaine en tant qu'utilisateur
-{
+function JoinADAsUser { #? Fonction pour rejoindre le domaine en tant qu'utilisateur
     $DomainName = Read-Host "Nommer le domaine"
     $Credentials = "Administrateur"
 
     Add-Computer -Domain $DomainName -Restart -Credential $Credentials
 }
-function FSDFS #? Fonction pour installer les rôles Serveur de Fichier + DFS sur les 4 Serveurs (DC1, DC2, FS1, FS2), crée les DFS Root sur les DC et les partage, les dossiers à répliquer et les partages sur les SF, et crée la réplication entre les deux SF
-{
+function FSDFS { #? Fonction pour installer les rôles Serveur de Fichier + DFS sur les 4 Serveurs (DC1, DC2, FS1, FS2), crée les DFS Root sur les DC et les partage, les dossiers à répliquer et les partages sur les SF, et crée la réplication entre les deux SF
     #!Requiert 2 contrôleurs de domaine et deux serveurs de fichier pour fonctionner
     $FirstDC = Read-Host "Veuillez entrer le nom du premier DC"
     $SecondDC = Read-Host "Veuillez entrer le nom du second DC"
@@ -130,7 +123,7 @@ function FSDFS #? Fonction pour installer les rôles Serveur de Fichier + DFS su
         New-SmbShare -Name $NameSpace -Path "C:\DFSRoot\$NameSpace"
     }
 
-    $CaptureLetterFS2 = Invoke-Command -ComputerName $FirstFS -ScriptBlock {
+    $CaptureLetterFS1 = Invoke-Command -ComputerName $FirstFS -ScriptBlock {
 
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
@@ -149,28 +142,30 @@ function FSDFS #? Fonction pour installer les rôles Serveur de Fichier + DFS su
         Get-Volume $Letter | Select-Object -Property DriveLetter
 
         $Compteur = 0
-
         do {
             $Compteur++
 
             if ($Compteur -eq 1) {
-                $NewFolder = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
+                $Loop = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
             }
             else {
-                $NewFolder = "yes"
+                $Loop = "yes"
             }
-            if ($NewFolder -eq "yes" -or $NewFolder -eq "y" -or $NewFolder -eq "oui") {
+            if ($Loop -eq "yes" -or $Loop -eq "y" -or $Loop -eq "oui") {
                 $NewFolderName = Read-Host "Nommer le nouveau dossier"
                 New-Item -ItemType Directory -Path "$($Letter):\Files\$NewFolderName" | Out-Host
-                $Loop = Read-Host "Voulez-vous créer d'autres dossiers ?"
+                $Loop2 = Read-Host "Voulez-vous créer autre dossier pour le partage ? (Y/N)"
             }
-            elseif ($NewFolder -eq "no" -or $NewFolder -eq "n") {
+            elseif ($Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non") {
                 Write-Host "Fin de la création"
-            }
-        } until ($Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non")
 
+            }
+        } until ($Loop2 -eq "no" -or $Loop2 -eq "n" -or $Loop2 -eq "non")
+
+        $ESID = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
+        $EName = $ESID.Translate([System.Security.Principal.NTAccount]).Value
         $ShareName = Read-Host "Nommer le partage"
-        New-SmbShare -Name $ShareName -Path "$($Letter):\Files\" | Out-Host
+        New-SmbShare -Name $ShareName -Path "$($Letter):\Files\" -FullAccess $EName | Out-Host
     }
 
     $CaptureLetterFS2 = Invoke-Command -ComputerName $SecondFS -ScriptBlock {
@@ -192,51 +187,51 @@ function FSDFS #? Fonction pour installer les rôles Serveur de Fichier + DFS su
         Get-Volume $Letter | Select-Object -Property DriveLetter
 
         $Compteur = 0
-
         do {
             $Compteur++
 
             if ($Compteur -eq 1) {
-                $NewFolder = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
+                $Loop = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
             }
             else {
-                $NewFolder = "yes"
+                $Loop = "yes"
             }
-            if ($NewFolder -eq "yes" -or $NewFolder -eq "y" -or $NewFolder -eq "oui") {
+            if ($Loop -eq "yes" -or $Loop -eq "y" -or $Loop -eq "oui") {
                 $NewFolderName = Read-Host "Nommer le nouveau dossier"
-                New-Item -ItemType Directory -Path "$($Letter):\Files\$NewFolderName" | Out-Host
-                $Loop = Read-Host "Voulez-vous créer d'autres dossiers ?"
+                New-Item -ItemType Directory -Path "$($Letter):\Files\$NewFolderName" -cre| Out-Host
+                $Loop2 = Read-Host "Voulez-vous créer autre dossier pour le partage ? (Y/N)"
             }
-            elseif ($NewFolder -eq "no" -or $NewFolder -eq "n") {
+            elseif ($Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non") {
                 Write-Host "Fin de la création"
-            }
-        } until ($Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non")
 
+            }
+        } until ($Loop2 -or $Loop -eq "no" -or $Loop2 -or $Loop -eq "n" -or $Loop2 -or $Loop -eq "non")
+
+        $ESID = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
+        $EName = $ESID.Translate([System.Security.Principal.NTAccount]).Value
         $ShareName = Read-Host "Nommer le partage"
-        New-SmbShare -Name $ShareName -Path "$($Letter):\Files\" | Out-Host
+        New-SmbShare -Name $ShareName -Path "$($Letter):\Files\" -FullAccess $EName | Out-Host
     }
 
     New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $PathDC1
     New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $PathDC2
-    $Folders = @(Get-ChildItem -Path "\\$FirstFS\Files\" | Select-Object -Property Name)
-    $Folders | ForEach-Object {
+    $Folders = @(Get-ChildItem -Path "\\$FirstFS\Partage\")
+    $Folders.Name | ForEach-Object {
     New-DfsnFolder -Path "$DFSRoot\$_" -TargetPath "$PathFS1\$_" -EnableTargetFailback $true -Description 'Folder for legacy software.'
-    New-DfsnFolderTarget -Path "$DFSRoot\$_" -TargetPath "$PathFS2\$_"
-    }
-    $Folders | ForEach-Object {
+    New-DfsnFolderTarget -Path "$DFSRoot\$_" -TargetPath "$PathFS2\$_"}
+    $Folders.Name | ForEach-Object {
         New-DfsReplicationGroup -GroupName $_ -Confirm:$false | New-DFSReplicatedFolder -Foldername $_
         Add-DfsrMember -GroupName $_ -ComputerName $FirstFS,$SecondFS -Confirm:$false
         Add-DfsrConnection -GroupName $_ -SourceComputerName $FirstFS -DestinationComputerName $SecondFS -Confirm:$false
-        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($CaptureLetterFS1.DriveLetter)\Files\$_" -ComputerName $FirstFS -PrimaryMember $True -Confirm:$false -Force
-        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($CaptureLetterFS2.DriveLetter)\Files\$_" -ComputerName $SecondFS $True -Confirm:$false -Force
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($CaptureLetterFS1.DriveLetter):\Files\$_" -ComputerName $FirstFS -PrimaryMember $True -Confirm:$false -Force
+        Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($CaptureLetterFS2.DriveLetter):\Files\$_" -ComputerName $SecondFS $True -Confirm:$false -Force
     }
 }
 
 
 
 
-function DiskInit
-{
+function DiskInit {
     Get-Disk
     $Disk = Read-Host "Sélectionner le disque à initialiser"
     $Letter = Read-Host "Entrer une lettre pour votre la partition"
@@ -329,8 +324,7 @@ function DiskInit
     Add-IscsiVritualDiskTargetMapping $NameTarget $VHDXPath -Lun 0
 }#>
 
-function console
-{
+function console {
     Clear-Host
     Write-Host "########################################################" -ForegroundColor Blue
     Write-Host "#                                                      #" -ForegroundColor Blue
@@ -349,8 +343,7 @@ function console
     Write-Host "8: Installer et déployer le DFS"
     Write-Host "9: Ajout des users AD"
     $choix = Read-Host "Choisissez votre destin"
-    switch ($choix)
-        {
+    switch ($choix) {
             1 {3disksup;Pause;console}
             2 {AD;Pause;console}
             3 {ReverseZone;pause;console}

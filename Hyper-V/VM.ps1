@@ -4,17 +4,17 @@ function NewVM {
     function WS22CORE {
         [CmdletBinding()]
         param(
-        [System.Object]$VMPath = ((Get-VMHost).VirtualMachinePath),
+        [System.Object]$HVMPath = ((Get-VMHost).VirtualMachinePath),
         [String]$VMName = (Read-Host "Nom de la VM ?"),
         [Int]$VMRAM = (Read-Host "Quantité de ram de la VM ?"),
         [ValidateSet(1,2)][Int]$VMGen = (Read-Host "Génération 1 ou 2 ?"),
         [int]$VMCoreNumber = (Read-Host  "Combien de coeur pour la VM ?")
         )
-        New-Item -ItemType Directory -Name $VMName -Path $VMPath
+        New-Item -ItemType Directory -Name $VMName -Path $HVMPath
 
         Copy-Item -Path "$HVMPath\Sysprep\WIN22CORESYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
-        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $VMPath -Generation $VMGen
-        Add-VMHardDiskDrive -VMName $VMName -path $HVMPath\$VMName\$VMName.vhdx
+        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen
+        Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
     }
     function WS22GUI {
@@ -26,11 +26,11 @@ function NewVM {
         [ValidateSet(1,2)][Int]$VMGen = (Read-Host "Génération 1 ou 2 ?"),
         [int]$VMCoreNumber = (Read-Host  "Combien de coeur pour la VM ?")
         )
-        New-Item -ItemType Directory -Name $VMName -Path $VMPath
+        New-Item -ItemType Directory -Name $VMName -Path $HVMPath
 
         Copy-Item -Path "$HVMPath\Sysprep\WIN22GUISYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
-        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $VMPath -Generation $VMGen
-        Add-VMHardDiskDrive -VMName $VMName -path $HVMPath\$VMName\$VMName.vhdx
+        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen
+        Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
     }
 
@@ -43,11 +43,11 @@ function NewVM {
         [ValidateSet(1,2)][Int]$VMGen = (Read-Host "Génération 1 ou 2 ?"),
         [Int]$VMCoreNumber = (Read-Host  "Combien de coeur pour la VM ?")
         )
-        New-Item -ItemType Directory -Name $VMName -Path $VMPath
+        New-Item -ItemType Directory -Name $VMName -Path $HVMPath
 
         Copy-Item -Path "$HVMPath\Sysprep\WIN10SYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
-        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $VMPath -Generation $Gen
-        Add-VMHardDiskDrive -VMName $VMName -path $HVMPath\$VMName\$VMName.vhdx
+        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen
+        Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
     }
 
@@ -179,8 +179,8 @@ function EPSIC {
             $LabDomainUserTemp = Read-Host "Utilisateur du domaine (domaine.x\user or user@domaine.x)"
             $LabPwdTemp = Read-Host "Mot de passe utilisateur"
             $LabPwdSecureTemp = ConvertTo-SecureString $LabPwdTemp -AsPlainText -Force
-            $global:LLC = New-Object System.Management.Automation.PSCredential($LabLocalUserTemp,$LabPwdSecureTemp)
-            $global:LDC = New-Object System.Management.Automation.PSCredential($LabDomainUserTemp,$LabPwdSecureTemp)
+            $Script:LLC = New-Object System.Management.Automation.PSCredential($LabLocalUserTemp,$LabPwdSecureTemp)
+            $Script:LDC = New-Object System.Management.Automation.PSCredential($LabDomainUserTemp,$LabPwdSecureTemp)
             Remove-Variable -Name *Temp*
     }
     function EPS {
@@ -195,19 +195,19 @@ function EPSIC {
         }
     }
     function IC {
-        $VM = Get-VM | Select-Object Name | Out-GridView -PassThru
+        $VM = Get-VM | Select-Object Name | Out-ConsoleGridView -OutputMode Single
         $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
         if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale"){
             $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
             Get-ChildItem -Path $Location | Select-Object -Property Name | Out-Host
             $Script = Read-Host "Choisir le script à éxecuter.."
-            Invoke-Command -VMName $VM -FilePath "$Location\$Script" -Credential $LLC
+            Invoke-Command -VMName $VM.Name -FilePath "$Location\$Script" -Credential $LLC
         }
         elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine"){
             $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
             Get-ChildItem -Path $Location | Select-Object -Property Name | Out-Host
             $Script = Read-Host "Choisir le script à éxecuter.."
-            Invoke-Command -VMName $VM -FilePath "$Location\$Script" -Credential $LDC
+            Invoke-Command -VMName $VM.Name -FilePath "$Location\$Script" -Credential $LDC
         }
     }
     Write-Host "1: Setup des credentials"
