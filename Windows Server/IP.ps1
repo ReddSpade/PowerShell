@@ -1,26 +1,21 @@
 $Global:NetIP = Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
-function GetIP
-{
+function GetIP {
     $NetIP
 }
 
-function SetIP
-{
+function SetIP {
     Write-Host "Souhaitez-vous..."
     Write-Host "1: Activer le DCHP"
     Write-Host "2: Définir une IP Statique"
     $choix = Read-Host "Veuillez choisir"
-    switch ($choix)
-    {
-        1
-        {
+    switch ($choix) {
+        1 {
             $NetIP
             [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
             Remove-NetRoute -InterfaceIndex $SelectNIC -Confirm:$false; Remove-NetIPAddress -InterfaceIndex $SelectNIC -Confirm:$false
             Set-NetIPInterface -InterfaceIndex $SelectNIC -DHCP Enabled
         }
-        2
-        {
+        2 {
             $NetIP
             [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
             $IPAdress = Read-Host "Veuillez entrer l'IP souhaitee"
@@ -40,29 +35,25 @@ function SetIP
 
     }
 }
-function DNS
-{
+function DNS {
     $NetIP
     [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
     $DNSIP = Read-Host "Choisir les IP souhaitees"
     Set-DnsClientServerAddress -InterfaceIndex $SelectNIC -Addresses $DNSIP
 }
-function RemoveIP
-{
+function RemoveIP {
     $NetIP
     [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
     Remove-NetRoute -InterfaceIndex $SelectNIC -Confirm:$false
     Remove-NetIPAddress -InterfaceIndex $SelectNIC -Confirm:$false
 }
 
-function pause($message="Appuyez sur une touche pour continuer...")
-{
+function pause($message="Appuyez sur une touche pour continuer...") {
     Write-Host -NoNewLine $message
     $null = $Host.UI.RawUI.ReadKey("noecho,includeKeydown")
     Write-Host ""
 }
-function console
-{
+function console {
     Clear-Host
     Write-Host "Menu Script"
 
@@ -72,8 +63,7 @@ function console
     Write-Host "4: Retirer les IP et routes"
     Write-Host "Q: Quitter le Script"
     $choix = Read-Host "Choisissez votre destin"
-    switch ($choix)
-        {
+    switch ($choix) {
             1 {GetIP;Pause;console}
             2 {SetIP;pause;console}
             3 {DNS;pause;console}
@@ -83,5 +73,3 @@ function console
         }
 }
 console
-
-

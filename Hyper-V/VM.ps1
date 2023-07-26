@@ -1,6 +1,6 @@
 #!TODO Ajouter la création des groupes, attribution des utilisateurs aux groupes, les droits des groupes sur les partages
 #Requires -Modules Hyper-V
-function NewVM {
+function VMMgmt {
     function WS22CORE {
         [CmdletBinding()]
         param(
@@ -13,9 +13,10 @@ function NewVM {
         New-Item -ItemType Directory -Name $VMName -Path $HVMPath
 
         Copy-Item -Path "$HVMPath\Sysprep\WIN22CORESYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
-        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen
+        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen -noswitch
         Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
+        Remove-VMNetworkAdapter -VMName $VMName
     }
     function WS22GUI {
         [CmdletBinding()]
@@ -32,6 +33,7 @@ function NewVM {
         New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen
         Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
+        Remove-VMNetworkAdapter -VMName $VMName
     }
 
     function W10RSAT {
@@ -49,10 +51,11 @@ function NewVM {
         New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen
         Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
+        Remove-VMNetworkAdapter -VMName $VMName
     }
 
     Get-VM | Select-Object Name,State | Out-Host
-    $Title = "Menu de création de VM"
+    $Title = "Création de VM"
     $Prompt = "Faire choix"
     $WS2022SRV = [System.Management.Automation.Host.ChoiceDescription]::New("Windows Server 2022 &Core","Crée une VM qui contient Windows Server 2022 (Core)")
     $WS2022GUI = [System.Management.Automation.Host.ChoiceDescription]::New("Windows Server 2022 &Graphique","Crée une VM qui contient Windows Server 2022 Experience de Bureau (GUI)")
@@ -66,26 +69,38 @@ function NewVM {
         2 {W10RSAT}
     }
 }
+function DiskMgmt {
+    function BLSDisk {
+        $HVMPath = (Get-VMHost).VirtualMachinePath
+        Get-VM | Select-Object -Property Name | Out-Host
+        $VMNameAdd = Read-Host "Choisir la VM pour rajout des disques durs"
+        $VMFullPath = "$HVMPath$VMNameAdd"
+        $VHDName = @("\bdd.vhdx","\logs.vhdx","\sysvol.vhdx")
+        $VHDName | ForEach-Object { New-VHD -Path $VMFullPath$_ -SizeBytes 4196MB }
+        $VHDName | Foreach-Object { Add-VMHardDiskDrive -VMName $VMNameAdd -Path $VMFullPath$_ -ControllerType SCSI -ControllerNumber 0 }
+    }
+    function NewVHD {
+        $HVMPath =  (Get-VMHost).VirtualMachinePath
+        Get-VM | Select-Object -Property Name | Out-Host
+        $VMNameAdd = Read-Host "Choisir la VM pour rajout des disques durs"
+        $VHDSize = Read-Host "Veuillez entrer une taille en GB"
+        $VHDName = Read-Host "Veuillez nommer votre disque"
+        New-VHD -Path "$HVMPath$VMNameAdd\$VHDName.vhdx" -SizeBytes "$($VHDSize)GB"
+        Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path "$HVMPath$VMNameAdd\$VHDName.vhdx"
+    }
+    $Title = "Démarrer toute les VM ou une seule ?"
+        $Prompt = "Faire choix"
+        $All = [System.Management.Automation.Host.ChoiceDescription]::New("Nouveau VHD pour Contrôleur de &Domaine","Crée 3 disques de 4Go nommés sysvol logs et bdd et les connectes à la VM souhaitée")
+        $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Nouveau VHD","Crée un nouveau VHD puis le connecte à la VM souhaitée")
+        $options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
+        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
+        Switch ($Choice) {
+            0 {BLSDisk}
+            1 {NewVHD}
+        }
 
-
-function DCDisk {
-    Get-VM | Select-Object Name | Format-Table
-    $HVMPath = (Get-vmhost).VirtualMachinePath
-    $VMNameAdd = Read-Host "Choisir la VM pour rajout des disques durs"
-    $VMFullPath = "$HVMPath$VMNameAdd"
-    $VHDName = @("\bdd.vhdx","\logs.vhdx","\sysvol.vhdx")
-    $VHDName | ForEach-Object { New-VHD -Path $VMFullPath$_ -SizeBytes 4196MB }
-    $VHDName | Foreach-Object { Add-VMHardDiskDrive -VMName $VMNameAdd -Path $VMFullPath$_ -ControllerType SCSI -ControllerNumber 0 }
 }
-function DiskAD {
-    Get-VM | Select-Object Name |Format-Table
-    $VMNameAdd = Read-Host "Choisir la VM pour rajout des disques durs"
-    $VHDSize = Read-Host "Veuillez entrer une taille en GB"
-    $VHDName = Read-Host "Veuillez nommer votre disque"
-    New-VHD -Path "$VMPath$VMNameAdd\$VHDName.vhdx" -SizeBytes "$($VHDSize)GB"
-    Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path "$VMPath$VMNameAdd\$VHDName.vhdx"
-}
-function StateManagement {
+function VMStateMgmt {
     function On {
         Get-VM | Select-Object Name,State | Out-Host
         $Title = "Démarrer toute les VM ou une seule ?"
@@ -114,7 +129,6 @@ function StateManagement {
             Stop-VM -name $VMSelect}
         }
     }
-
     function Remove {
         Get-VM | Select-Object Name | Format-Table
         $Title = "Démarrer toute les VM ou une seule ?"
@@ -124,20 +138,21 @@ function StateManagement {
         $Options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
         $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
         Switch ($Choice) {
-            0 { $VMLitteralPath = Get-VM | Select-Object -Property Path
+            0 { $HVMPath = ((Get-VMHost).VirtualMachinePath)
+                $VMLitteralPath = Get-VM | Select-Object -Property Name
                 Stop-VM -VMName * -Force -WarningAction Ignore
                 Remove-VM -Name * -Force
-                Remove-Item -Path ($VMLitteralPath).Path -Recurse -Force
+                $VMLitteralPath | Foreach-Object { Remove-Item -Path "$HVMPath$($_.Name)" -Recurse -Force }
                 Write-Host "Les VM ont toutes étées supprimées"
             }
-            1 { $VMName = Get-VM | Where-Object -Property name -eq $VMSelect | Select-Object -Property Path | Out-GridView -PassThru
+            1 { $VMName = Get-VM | Select-Object -Property Name,Path | Out-GridView -PassThru
                 Stop-VM -Name $VMName.Name -Force -WarningAction Ignore
-                Remove-VM -Name $VMSelect.Name -Force
-                Remove-Item -Path ($VMLitteralPath).Path -Recurse -Force
+                Remove-VM -Name $VMName.Name -Force
+                Remove-Item -Path $VMName.Path -Recurse -Force
             }
         }
     }
-    Get-VM | Select-Object Name | Format-Table
+    Get-VM | Select-Object VMName | Format-Table
     $Title = "Menu de management de l'état des VM"
     $Prompt = "Faire choix"
     $On = [System.Management.Automation.Host.ChoiceDescription]::New("&Démarrage","Menu de démarrage des VM")
@@ -151,34 +166,60 @@ function StateManagement {
     2 {Remove}
     }
 }
-function ConnectSwitch {
-    $VMSelect = Get-VM | Select-Object Name, @{Name="SwitchName"; Expression={$_.NetworkAdapters | Select-Object -ExpandProperty SwitchName}} | Out-Gridview -PassThru
-    $VMSwitch = Get-VMSwitch | Out-Gridview -PassThru
-    Add-VMNetworkAdapter -Name "Carte Réseau" -SwitchName $VMSwitch.Name -VMName $VMSelect.Name
-}
-function NewSwitch {
-    Get-VMSwitch | Format-Table
-    $choix = Read-Host "Switch Interne (Permet de communiquer avec l'hôte) Privé (Isolation complète) ou Externe (Accès WAN) ?"
-    $SwitchName = Read-Host "Nommer le Switch"
-    if ($choix -eq "Interne" -or $choix -eq "Internal") {
-        New-VMSwitch -Name $SwitchName -switchtype Internal
-    }
-    elseif ($choix -eq "Privé" -or $choix -eq "Private" -or $choix -eq "Prive"){
-        New-VMSwitch -Name $SwitchName -switchtype Private
-    }
-    elseif ($choix -eq "External" -or $choix -eq "Externe") {
-        Get-NetAdapter | Format-Table -Property Name,InterfaceDescription,Status
-        $NICName = Read-Host "Veuillez choisir dans la colonne `"Name`" votre carte réseau"
-        New-VMSwitch -Name $SwitchName -NetAdapterName $NICName
-    }
+function SwitchMgmt {
+    function ConnectSwitch {
+        $Title = "Connexion unique ou multiple ?"
+        $Prompt = "Faire choix"
+        $All = [System.Management.Automation.Host.ChoiceDescription]::New("&Toutes","Connecter le Switch sur chaque VM")
+        $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Selection","Sélection de la VM cible")
+        $Options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
+        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
+        Switch ($Choice) {
+            0 { Write-Host "Liste des VM existantes et leur Switch déjà connectés" -ForegroundColor Blue
+                Get-VM | Select-Object Name, @{Name="SwitchName"; Expression={$_.NetworkAdapters.SwitchName}} | Out-Host
+                $VMSwitch = Get-VMSwitch | Out-Gridview -PassThru
+                Add-VMNetworkAdapter -Name "Carte Réseau" -SwitchName $VMSwitch.Name -VMName * }
+            1 { $VMSelect = Get-VM | Select-Object VMName, @{Name="SwitchName"; Expression={$_.NetworkAdapters.SwitchName}} | Out-GridView -PassThru
+                $VMSwitch = Get-VMSwitch | Out-Gridview -PassThru
+                Add-VMNetworkAdapter -Name "Carte Réseau" -SwitchName $VMSwitch.Name -VMName $VMSelect.VMName }
+            }
+        }
+    function NewSwitch {
+        $Title = "Quel type de Switch créer ?"
+        $Prompt = "Faire choix"
+        $Internal = [System.Management.Automation.Host.ChoiceDescription]::New("&Interne","Pas d'accès Internet sans Port Forward, permet de communiquer avec l'hôte")
+        $Private = [System.Management.Automation.Host.ChoiceDescription]::New("&Privé","Pas d'accès Internet sans Port Forward, Isolation complète")
+        $External = [System.Management.Automation.Host.ChoiceDescription]::New("&Externe","Accès Internet, utilise une Carte Réseau de l'hôte")
+        $Options = [System.Management.Automation.Host.ChoiceDescription[]]($Internal, $Private, $External)
+        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
+        Switch ($Choice) {
+            0 { $SwitchName = Read-Host -Prompt "Nommer le Switch"
+                New-VMSwitch -Name $SwitchName -SwitchType Internal }
+            1 { $SwitchName = Read-Host -Prompt "Nommer le Switch"
+                New-VMSwitch -Name $SwitchName -SwitchType Private }
+            2 { Get-VMSwitch | Format-Table
+                $SwitchName = Read-Host "Nommer le Switch"
+                $NIC = Get-NetAdapter | Select-Object -Property Name,InterfaceDescription,Status | Out-GridView -PassThru
+                New-VMSwitch -Name $SwitchName -NetAdapterName $NIC.Name }
+            }
+        }
+        $Title = "Démarrer toute les VM ou une seule ?"
+        $Prompt = "Faire choix"
+        $Connection = [System.Management.Automation.Host.ChoiceDescription]::New("&Connecter Switch","Connexion d'un Switch à la Carte Réseau d'une ou de toutes les VM")
+        $New = [System.Management.Automation.Host.ChoiceDescription]::New("&Nouveau Switch","Création d'un nouveau Switch")
+        $Options = [System.Management.Automation.Host.ChoiceDescription[]]($Connection, $New)
+        $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
+        Switch ($Choice) {
+            0 {ConnectSwitch}
+            1 {NewSwitch}
+        }
 }
 function EPSIC {
     function Creds {
         Write-Host 'Ne peut être défini qu''une fois, si une erreur a été faite, faire Remove-Variable -Name LLC,LDC' -ForegroundColor Red
             $LabLocalUserTemp = Read-Host "Utilisateur Local"
             $LabDomainUserTemp = Read-Host "Utilisateur du domaine (domaine.x\user or user@domaine.x)"
-            $LabPwdTemp = Read-Host "Mot de passe utilisateur"
-            $LabPwdSecureTemp = ConvertTo-SecureString $LabPwdTemp -AsPlainText -Force
+            $LabPwdSecureTemp = Read-Host -Prompt "Mot de passe utilisateur" -AsSecureString
             $Script:LLC = New-Object System.Management.Automation.PSCredential($LabLocalUserTemp,$LabPwdSecureTemp)
             $Script:LDC = New-Object System.Management.Automation.PSCredential($LabDomainUserTemp,$LabPwdSecureTemp)
             Remove-Variable -Name *Temp*
@@ -187,23 +228,23 @@ function EPSIC {
         Get-VM | Select-Object Name | Format-Table
         $VM = Get-VM | Select-Object Name | Out-GridView -PassThru
         $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
-        if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale"){
+        if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale") {
             Enter-PSSession -VMName $VM.Name -Credential $LLC
         }
-        elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine"){
+        elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine") {
             Enter-PSSession -VMName $VM.Name -Credential $LDC
         }
     }
     function IC {
         $VM = Get-VM | Select-Object Name | Out-ConsoleGridView -OutputMode Single
         $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
-        if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale"){
+        if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale") {
             $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
             Get-ChildItem -Path $Location | Select-Object -Property Name | Out-Host
             $Script = Read-Host "Choisir le script à éxecuter.."
             Invoke-Command -VMName $VM.Name -FilePath "$Location\$Script" -Credential $LLC
         }
-        elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine"){
+        elseif ($LabSession -eq "D" -or $LabSession -eq "Domain" -or $LabSession -eq "Domaine") {
             $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
             Get-ChildItem -Path $Location | Select-Object -Property Name | Out-Host
             $Script = Read-Host "Choisir le script à éxecuter.."
@@ -220,7 +261,6 @@ function EPSIC {
         3 {IC}
     }
 }
-
 function pause ($message="Appuyez sur une touche pour continuer...") {
     Write-Host -NoNewLine $message
     $null = $Host.UI.RawUI.ReadKey("noecho,includeKeydown")
@@ -228,34 +268,29 @@ function pause ($message="Appuyez sur une touche pour continuer...") {
 }
 function console {
     Clear-Host
-    Write-Host "#######################################################" -ForegroundColor Blue
-    Write-Host "#                                                     #" -ForegroundColor Blue
-    Write-Host "#          ↓ Menu de management VM Hyper-V ↓          #" -ForegroundColor Blue
-    Write-Host "#                                                     #" -ForegroundColor Blue
-    Write-Host "#######################################################" -ForegroundColor Blue
+    Write-Host "######################################################" -ForegroundColor DarkMagenta
+    Write-Host "#                                                    #" -ForegroundColor DarkMagenta
+    Write-Host "#           ↓ Menu de management Hyper-V ↓           #" -ForegroundColor DarkMagenta
+    Write-Host "#                                                    #" -ForegroundColor DarkMagenta
+    Write-Host "######################################################" -ForegroundColor DarkMagenta
 
 
-    Write-Host "1: Menu de création de VM"
-    Write-Host "2: Créer et connecter un disque"
-    Write-Host "3: Ajouter BDD/LOGS/SYSVOL"
-    Write-Host "4: Menu de Management de l'état des VM"
-    Write-Host "5: Connecter un Switch à une VM"
-    Write-Host "6: Créer un Switch"
-    Write-Host "7: EPSIC" -ForegroundColor DarkMagenta
+    Write-Host "1: Menu de création des VM"
+    Write-Host "2: Menu de management des Disques Virtuels"
+    Write-Host "3: Menu de management de l'état des VM"
+    Write-Host "4: Menu de management des Switchs"
+    Write-Host "5: EPSIC" -ForegroundColor DarkMagenta
     Write-Host "Q: Quitter le Script"
 
-    $choix = Read-Host "Choisissez votre destin"
-    switch ($choix) {
-            1 {NewVM;pause;console}
-            2 {DiskAD;pause;console}
-            3 {DCDisk;pause;console}
-            4 {StateManagement;pause;console}
-            5 {ConnectSwitch;pause;console}
-            6 {NewSwitch;pause;console}
-            7 {EPSIC;pause;break}
+    $Choice = Read-Host "Faire choix"
+    switch ($Choice) {
+            1 {VMMgmt;pause;console}
+            2 {DiskMgmt;pause;console}
+            3 {VMStateMgmt;pause;console}
+            4 {SwitchMgmt;pause;console}
+            5 {EPSIC;pause;break}
             Q {exit}
             default {console}
         }
 }
-
 console

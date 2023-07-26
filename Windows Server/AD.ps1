@@ -1,4 +1,4 @@
-function 3disksup { #? Suite de commande pour définir les 3 disques pour les emplacements nécessaires à la création un contrôleur de domaine (SYSVOL, NTDS BDD, NTDS LOGS)
+function 3disksup {
     Get-Disk | Out-Host
     $DiskBDD = Read-Host "Sélectionner un disque pour la BDD"
     Initialize-Disk -Number $DiskBDD
@@ -38,20 +38,20 @@ function AD {
 }
 
 function ReverseZone {
-    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table #?Liste les cartes réseaux et formate la liste pour montrer la description, le numéro de l'index et l'IP associée
+    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Out-Host
     $DNSInterface = Read-Host "Choisir le numero d`'interface"
     $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
     Get-DNSClientServerAddress -InterfaceIndex $DNSInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
     Set-DnsClientServerAddress -InterfaceIndex $DNSInterface -ServerAddresses $DNSIP
-    $NetworkIP = Read-Host "Saisissez l`'adresse du reseau au format IP/CIDR" #Exemple: 192.168.1.1/24
+    $NetworkIP = Read-Host "Saisissez l`'adresse du reseau au format IP/CIDR"
 
     Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
     ipconfig /registerdns
 }
 
-function DHCP { #? Installation de la feature DHCP 
+function DHCP {
     Install-WindowsFeature DHCP -IncludeManagementTools
-    #Declaration des variables
+
     $Pool = Read-Host "Saisir le nom de l`'etendue"
     $FirstIP = Read-Host "Saisir la premiere adresse attribuable de l`'etendue"
     $LastIP = Read-Host "Saisir la derniere adresse attribuable de l`'etendue"
@@ -60,10 +60,9 @@ function DHCP { #? Installation de la feature DHCP
     $NetworkID = Read-Host "Saisir l`'IP du reseau de l`'etendue" #Finit par 0
     Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
     $SelectNIC = Read-Host "Saisir le numéro de l`'interface"
-    #$DNSIP = Get-DnsClientServerAddress -InterfaceIndex $SelectNIC -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses
     $DomainID = (Get-ADDomain).DNSRoot
     $FQDN = (Get-ADDomain).InfrastructureMaster
-    #Commandes
+
     Add-DHCPServerInDC -DNSName $FQDN
     Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2
     Add-DHCPServerv4Scope -Name $Pool -StartRange $FirstIP -EndRange $LastIP -SubnetMask $PoolMask -State Active
@@ -71,6 +70,11 @@ function DHCP { #? Installation de la feature DHCP
 
 }
 
+function Rename {
+    $env:COMPUTERNAME
+    $NewName = Read-Host -Prompt "Indiquer le nouveau nom du poste"
+    Rename-Computer -NewName $NewName
+}
 function JoinAsDC {
     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
 
@@ -97,7 +101,7 @@ function JoinADAsUser { #? Fonction pour rejoindre le domaine en tant qu'utilisa
 
     Add-Computer -Domain $DomainName -Restart -Credential $Credentials
 }
-function FSDFS { #? Fonction pour installer les rôles Serveur de Fichier + DFS sur les 4 Serveurs (DC1, DC2, FS1, FS2), crée les DFS Root sur les DC et les partage, les dossiers à répliquer et les partages sur les SF, et crée la réplication entre les deux SF
+function FSDFS {
     #!Requiert 2 contrôleurs de domaine et deux serveurs de fichier pour fonctionner
     $FirstDC = Read-Host "Veuillez entrer le nom du premier DC"
     $SecondDC = Read-Host "Veuillez entrer le nom du second DC"
@@ -145,7 +149,7 @@ function FSDFS { #? Fonction pour installer les rôles Serveur de Fichier + DFS 
         do {
             $Compteur++
 
-            if ($Compteur -eq 1) {
+            if ($Compteur -ge 1) {
                 $Loop = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
             }
             else {
@@ -190,7 +194,7 @@ function FSDFS { #? Fonction pour installer les rôles Serveur de Fichier + DFS 
         do {
             $Compteur++
 
-            if ($Compteur -eq 1) {
+            if ($Compteur -ge 1) {
                 $Loop = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
             }
             else {
@@ -205,7 +209,7 @@ function FSDFS { #? Fonction pour installer les rôles Serveur de Fichier + DFS 
                 Write-Host "Fin de la création"
 
             }
-        } until ($Loop2 -or $Loop -eq "no" -or $Loop2 -or $Loop -eq "n" -or $Loop2 -or $Loop -eq "non")
+        } until ($Loop2 -eq "no" -or $Loop2 -eq "n" -or $Loop2 -eq "non")
 
         $ESID = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
         $EName = $ESID.Translate([System.Security.Principal.NTAccount]).Value
@@ -227,10 +231,6 @@ function FSDFS { #? Fonction pour installer les rôles Serveur de Fichier + DFS 
         Set-DfsrMembership -GroupName $_ -FolderName $_ -ContentPath "$($CaptureLetterFS2.DriveLetter):\Files\$_" -ComputerName $SecondFS $True -Confirm:$false -Force
     }
 }
-
-
-
-
 function DiskInit {
     Get-Disk
     $Disk = Read-Host "Sélectionner le disque à initialiser"
@@ -337,22 +337,24 @@ function console {
     Write-Host "2: Installation AD"
     Write-Host "3: Zone inversee DNS"
     Write-Host "4: Installation DHCP"
-    Write-Host "5: Rejoindre le domain en tant que controleur de domaine"
-    Write-Host "6: Rejoindre le domaine en tant qu'utilisateur"
-    Write-Host "7: Initialiser un disque"
-    Write-Host "8: Installer et déployer le DFS"
-    Write-Host "9: Ajout des users AD"
+    Write-Host "5: Renommer et redémarrer le poste"
+    Write-Host "6: Rejoindre le domain en tant que controleur de domaine"
+    Write-Host "7: Rejoindre le domaine en tant qu'utilisateur"
+    Write-Host "8: Initialiser un disque"
+    Write-Host "9: Installer et déployer le DFS"
+    #Write-Host "9: Ajout des users AD"
     $choix = Read-Host "Choisissez votre destin"
     switch ($choix) {
             1 {3disksup;Pause;console}
             2 {AD;Pause;console}
             3 {ReverseZone;pause;console}
             4 {DHCP;pause;console}
-            5 {JoinAsDC;pause;console}
-            6 {JoinADAsUser;pause;console}
-            7 {DiskInit;pause;console}
-            8 {FSDFS;pause;console}
-            9 {UserAD;pause;console}
+            5 {Rename}
+            6 {JoinAsDC;pause;console}
+            7 {JoinADAsUser;pause;console}
+            8 {DiskInit;pause;console}
+            9 {FSDFS;pause;console}
+            #9 {UserAD;pause;console}
             Q {exit}
             default {console}
         }
