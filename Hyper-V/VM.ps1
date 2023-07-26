@@ -53,6 +53,22 @@ function VMMgmt {
         Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
         Remove-VMNetworkAdapter -VMName $VMName
     }
+    function Ubuntu {
+        $TPM = Test-Path "C:\Program Files\Multipass"
+        if ($TPM -eq $false) {
+            Write-Error "Multipass n'est pas installé, Uri Multipass-> https://multipass.run/" -ErrorAction Break
+        }
+        else {
+            [String]$VMName = Read-Host "Nom de la VM ?"
+            [Int]$VMRAM = Read-Host "Quantité de ram de la VM ?"
+            [Int]$VMCoreNumber = Read-Host  "Combien de coeur pour la VM ?"
+            [Int]$VMDisk = Read-Host "Combien d'espace pour le disque ?"
+            multipass launch --name $VMName --cpus $VMCoreNumber --memory "$($VMRAM)G" --disk "$($VMDisk)G"
+            Set-VM -Name $VMName -CheckpointType Disabled
+            Remove-VMSnapshot -VMName $VMName -IncludeAllChildSnapshots:$true
+            Remove-VMNetworkAdapter -VMName $VMName
+        }
+    }
 
     Get-VM | Select-Object Name,State | Out-Host
     $Title = "Création de VM"
@@ -60,13 +76,15 @@ function VMMgmt {
     $WS2022SRV = [System.Management.Automation.Host.ChoiceDescription]::New("Windows Server 2022 &Core","Crée une VM qui contient Windows Server 2022 (Core)")
     $WS2022GUI = [System.Management.Automation.Host.ChoiceDescription]::New("Windows Server 2022 &Graphique","Crée une VM qui contient Windows Server 2022 Experience de Bureau (GUI)")
     $W10RSAT = [System.Management.Automation.Host.ChoiceDescription]::New("Windows 10 &RSAT", "Crée une VM qui contient Windows 10 avec les outils RSAT pour le management de Serveurs")
-    $Options = [System.Management.Automation.Host.ChoiceDescription[]]($WS2022SRV, $WS2022GUI, $W10RSAT)
+    $Ubuntu = [System.Management.Automation.Host.ChoiceDescription]::New("&Ubuntu Server", "Crée une VM avec multipass qui Ubuntu Server")
+    $Options = [System.Management.Automation.Host.ChoiceDescription[]]($WS2022SRV, $WS2022GUI, $W10RSAT,$Ubuntu)
 
     $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
     Switch ($Choice) {
         0 {WS22CORE}
         1 {WS22GUI}
         2 {W10RSAT}
+        3 {Ubuntu}
     }
 }
 function DiskMgmt {
@@ -103,7 +121,7 @@ function DiskMgmt {
 function VMStateMgmt {
     function On {
         Get-VM | Select-Object Name,State | Out-Host
-        $Title = "Démarrer toute les VM ou une seule ?"
+        $Title = "Démarrer toutes les VM ou une seule ?"
         $Prompt = "Faire choix"
         $All = [System.Management.Automation.Host.ChoiceDescription]::New("&Toutes","Lance le démarrage de chaque VM")
         $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Selection","Sélection de la VM à démarrer")
@@ -117,7 +135,7 @@ function VMStateMgmt {
     }
     function Off {
         Get-VM | Select-Object Name,State | Out-Host
-        $Title = "Démarrer toute les VM ou une seule ?"
+        $Title = "Éteindre toutes les VM ou une seule ?"
         $Prompt = "Faire choix"
         $All = [System.Management.Automation.Host.ChoiceDescription]::New("&Toutes","Arrêter toutes les VM")
         $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Selection","Sélection de la VM à arrêter")
@@ -131,11 +149,12 @@ function VMStateMgmt {
     }
     function Remove {
         Get-VM | Select-Object Name | Format-Table
-        $Title = "Démarrer toute les VM ou une seule ?"
+        $Title = "Supprimer toutes les VM ou une seule ?"
         $Prompt = "Faire choix"
         $All = [System.Management.Automation.Host.ChoiceDescription]::New("&Toutes","Lance la suppression de chaque VM")
         $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Selection","Sélection de la VM à supprimer")
-        $Options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
+        $Ubuntu = [System.Management.Automation.Host.ChoiceDescription]::New("&Ubuntu","Sous Menu dédié aux VM Ubuntu")
+        $Options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select, $Ubuntu)
         $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
         Switch ($Choice) {
             0 { $HVMPath = ((Get-VMHost).VirtualMachinePath)
@@ -149,6 +168,21 @@ function VMStateMgmt {
                 Stop-VM -Name $VMName.Name -Force -WarningAction Ignore
                 Remove-VM -Name $VMName.Name -Force
                 Remove-Item -Path $VMName.Path -Recurse -Force
+            }
+            2{  multipass list | Out-Host
+                $Title = "Supprimer toutes les VM ou une seule ?"
+                $Prompt = "Faire choix"
+                $All = [System.Management.Automation.Host.ChoiceDescription]::New("&Toutes","Lance la suppression de chaque VM Ubuntu")
+                $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Selection","Sélection de la VM Ubuntu à supprimer")
+                $Options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
+                $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
+                Switch ($Choice) {
+                    0 { multipass delete --all
+                        multipass purge }
+                    1 { $VMName = Read-Host -Prompt "Choisir la VM Ubuntu à supprimer"
+                        multipass delete $VMName
+                        multipass purge }
+                }
             }
         }
     }
@@ -273,15 +307,12 @@ function console {
     Write-Host "#           ↓ Menu de management Hyper-V ↓           #" -ForegroundColor DarkMagenta
     Write-Host "#                                                    #" -ForegroundColor DarkMagenta
     Write-Host "######################################################" -ForegroundColor DarkMagenta
-
-
     Write-Host "1: Menu de création des VM"
     Write-Host "2: Menu de management des Disques Virtuels"
     Write-Host "3: Menu de management de l'état des VM"
     Write-Host "4: Menu de management des Switchs"
     Write-Host "5: EPSIC" -ForegroundColor DarkMagenta
     Write-Host "Q: Quitter le Script"
-
     $Choice = Read-Host "Faire choix"
     switch ($Choice) {
             1 {VMMgmt;pause;console}
