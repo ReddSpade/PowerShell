@@ -63,7 +63,7 @@ function VMMgmt {
             [Int]$VMRAM = Read-Host "Quantité de ram de la VM ?"
             [Int]$VMCoreNumber = Read-Host  "Combien de coeur pour la VM ?"
             [Int]$VMDisk = Read-Host "Combien d'espace pour le disque ?"
-            multipass launch --name $VMName --cpus $VMCoreNumber --memory "$($VMRAM)G" --disk "$($VMDisk)G"
+            multipass launch --name $VMName --cpus $VMCoreNumber --memory "$($VMRAM)G" --disk "$($VMDisk)G" --cloud-init "D:\Github\Bash\user-data.yaml"
             Set-VM -Name $VMName -CheckpointType Disabled
             Remove-VMSnapshot -VMName $VMName -IncludeAllChildSnapshots:$true
             Remove-VMNetworkAdapter -VMName $VMName
