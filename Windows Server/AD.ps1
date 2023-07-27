@@ -1,3 +1,4 @@
+#!TODO Réplique DHCP, utilisateurs & Groupes AD
 function 3disksup {
     Get-Disk | Out-Host
     $DiskBDD = Read-Host "Sélectionner un disque pour la BDD"
@@ -71,9 +72,10 @@ function DHCP {
 }
 
 function Rename {
-    $env:COMPUTERNAME
+    Write-Host "$env:COMPUTERNAME" -ForegroundColor blue
     $NewName = Read-Host -Prompt "Indiquer le nouveau nom du poste"
     Rename-Computer -NewName $NewName
+    Restart-Computer -Force
 }
 function JoinAsDC {
     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
@@ -117,14 +119,19 @@ function FSDFS {
     Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
     Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
     New-Item -ItemType Directory -Path "C:\DFSRoot\$NameSpace"
-    New-SmbShare -Name $NameSpace -Path "C:\DFSRoot\$NameSpace"
+    $ESID = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
+    $EName = $ESID.Translate([System.Security.Principal.NTAccount]).Value
+    New-SmbShare -Name $NameSpace -Path "C:\DFSRoot\$NameSpace" -FullAccess $EName | Out-Host
 
     Invoke-Command -ComputerName $SecondDC -ScriptBlock {
         Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
         Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
         $NameSpace = Read-Host "Saisir le nom du partage"
         New-Item -ItemType Directory -Path "C:\DFSRoot\$NameSpace"
-        New-SmbShare -Name $NameSpace -Path "C:\DFSRoot\$NameSpace"
+
+        $ESID = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
+        $EName = $ESID.Translate([System.Security.Principal.NTAccount]).Value
+        New-SmbShare -Name $NameSpace -Path "C:\DFSRoot\$NameSpace" -FullAccess $EName | Out-Host
     }
 
     $CaptureLetterFS1 = Invoke-Command -ComputerName $FirstFS -ScriptBlock {
@@ -145,11 +152,11 @@ function FSDFS {
 
         Get-Volume $Letter | Select-Object -Property DriveLetter
 
-        $Compteur = 0
+         $Compteur = 0
         do {
             $Compteur++
 
-            if ($Compteur -ge 1) {
+            if ($Compteur -eq 1) {
                 $Loop = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
             }
             else {
@@ -164,7 +171,7 @@ function FSDFS {
                 Write-Host "Fin de la création"
 
             }
-        } until ($Loop2 -eq "no" -or $Loop2 -eq "n" -or $Loop2 -eq "non")
+        } until ($Loop2 -eq "no" -or $Loop2 -eq "n" -or $Loop2 -eq "non" -or $Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non")
 
         $ESID = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
         $EName = $ESID.Translate([System.Security.Principal.NTAccount]).Value
@@ -194,7 +201,7 @@ function FSDFS {
         do {
             $Compteur++
 
-            if ($Compteur -ge 1) {
+            if ($Compteur -eq 1) {
                 $Loop = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
             }
             else {
@@ -202,14 +209,14 @@ function FSDFS {
             }
             if ($Loop -eq "yes" -or $Loop -eq "y" -or $Loop -eq "oui") {
                 $NewFolderName = Read-Host "Nommer le nouveau dossier"
-                New-Item -ItemType Directory -Path "$($Letter):\Files\$NewFolderName" -cre| Out-Host
+                New-Item -ItemType Directory -Path "$($Letter):\Files\$NewFolderName" | Out-Host
                 $Loop2 = Read-Host "Voulez-vous créer autre dossier pour le partage ? (Y/N)"
             }
             elseif ($Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non") {
                 Write-Host "Fin de la création"
 
             }
-        } until ($Loop2 -eq "no" -or $Loop2 -eq "n" -or $Loop2 -eq "non")
+        } until ($Loop2 -eq "no" -or $Loop2 -eq "n" -or $Loop2 -eq "non" -or $Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non")
 
         $ESID = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
         $EName = $ESID.Translate([System.Security.Principal.NTAccount]).Value

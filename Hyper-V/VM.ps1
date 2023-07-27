@@ -13,7 +13,7 @@ function VMMgmt {
         New-Item -ItemType Directory -Name $VMName -Path $HVMPath
 
         Copy-Item -Path "$HVMPath\Sysprep\WIN22CORESYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
-        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen -noswitch
+        New-VM -Name $VMName -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen
         Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
         Remove-VMNetworkAdapter -VMName $VMName
@@ -63,7 +63,7 @@ function VMMgmt {
             [Int]$VMRAM = Read-Host "Quantité de ram de la VM ?"
             [Int]$VMCoreNumber = Read-Host  "Combien de coeur pour la VM ?"
             [Int]$VMDisk = Read-Host "Combien d'espace pour le disque ?"
-            multipass launch --name $VMName --cpus $VMCoreNumber --memory "$($VMRAM)G" --disk "$($VMDisk)G" --cloud-init "D:\Github\Bash\user-data.yaml"
+            multipass launch --name $VMName --cpus $VMCoreNumber --memory "$($VMRAM)G" --disk "$($VMDisk)G" --cloud-init "C:\Users\Administrateur\Documents\GitHub\Bash\user-data.yaml"
             Set-VM -Name $VMName -CheckpointType Disabled
             Remove-VMSnapshot -VMName $VMName -IncludeAllChildSnapshots:$true
             Remove-VMNetworkAdapter -VMName $VMName
