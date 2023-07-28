@@ -19,7 +19,6 @@ function 3disksup {
 
 
 function AD {
-    Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
     $NameNetBIOS = Read-Host "Nommez le NETBIOS"
     $NameDomain = Read-Host "Nommez le domaine"
 
@@ -39,6 +38,7 @@ function AD {
 }
 
 function ReverseZone {
+    #todo Problématique: Pas de configuration sur le DC02
     Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Out-Host
     $DNSInterface = Read-Host "Choisir le numero d`'interface"
     $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
@@ -75,6 +75,7 @@ function DHCP {
         Add-DHCPServerInDC -DNSName [System.Net.Dns]::GetHostByName($env:computerName).HostName
         Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2
     }
+    #Faire une boucle pour proposer ou nno
     $Scope = Get-DhcpServerv4Scope -ComputerName $DHCPMaster
     $FailOverName = Read-Host -Prompt "Nommer le nom du Basculement"
     $Partner = Read-Host -Prompt "Nommer le server du 2e DHCP"
@@ -109,7 +110,7 @@ function JoinAsDC {
     -NoRebootOnCompletion:$false `
     -SiteName "Default-First-Site-Name" `
     -SysvolPath "S:\SYSVOL" `
-    -Force:$true `
+    -Force:$true
 }
 
 function JoinADAsUser { #? Fonction pour rejoindre le domaine en tant qu'utilisateur

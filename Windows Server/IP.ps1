@@ -37,7 +37,7 @@ function SetIP {
 }
 function DNS {
     $NetIP
-    [int32]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
+    [int]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
     $DNSIP = Read-Host "Choisir les IP souhaitees"
     Set-DnsClientServerAddress -InterfaceIndex $SelectNIC -Addresses $DNSIP
 }
