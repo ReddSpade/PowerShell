@@ -62,19 +62,34 @@ function DHCP {
     Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
     $SelectNIC = Read-Host "Saisir le numéro de l`'interface"
     $DomainID = (Get-ADDomain).DNSRoot
-    $FQDN = (Get-ADDomain).InfrastructureMaster
+    $FQDN = [System.Net.Dns]::GetHostByName($env:computerName).HostName
 
     Add-DHCPServerInDC -DNSName $FQDN
-    Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2
+    Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2 #Fait disparaitre le message post installation DHCP
     Add-DHCPServerv4Scope -Name $Pool -StartRange $FirstIP -EndRange $LastIP -SubnetMask $PoolMask -State Active
     Set-DHCPServerv4OptionValue $NetworkID -DnsDomain $DomainID -DnsServer $SelectNIC -Router $DHCPGateway
+
+    Invoke-Command -ComputerName $SecondDC -ScriptBlock {
+        Install-WindowsFeature DHCP -IncludeManagementTools
+
+        Add-DHCPServerInDC -DNSName [System.Net.Dns]::GetHostByName($env:computerName).HostName
+        Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2
+    }
+    $Scope = Get-DhcpServerv4Scope -ComputerName $DHCPMaster
+    $FailOverName = Read-Host -Prompt "Nommer le nom du Basculement"
+    $Partner = Read-Host -Prompt "Nommer le server du 2e DHCP"
+    $Secret = Read-Host -Prompt "Créer le mot de passe du Failover" -AsSecureString
+
+    Add-DhcpServerv4Failover -Name $FailOverName -ComputerName $DHCPMaster -PartnerServer $Partner -ServerRole Standby -ScopeId $Scope.ScopeId -SharedSecret $Secret
+
 
 }
 
 function Rename {
-    Write-Host "$env:COMPUTERNAME" -ForegroundColor blue
+    Write-Host "Nom actuel du poste: $env:COMPUTERNAME" -ForegroundColor blue
     $NewName = Read-Host -Prompt "Indiquer le nouveau nom du poste"
-    Rename-Computer -NewName $NewName
+    Rename-Computer -NewName $NewName.ToUpper()
+    Write-Warning "Le poste va maintenant redémarrer."
     Restart-Computer -Force
 }
 function JoinAsDC {
@@ -104,6 +119,7 @@ function JoinADAsUser { #? Fonction pour rejoindre le domaine en tant qu'utilisa
     Add-Computer -Domain $DomainName -Restart -Credential $Credentials
 }
 function FSDFS {
+    Get-ADComputer -Filter * | Select-Object -Property DNShostname
     #!Requiert 2 contrôleurs de domaine et deux serveurs de fichier pour fonctionner
     $FirstDC = Read-Host "Veuillez entrer le nom du premier DC"
     $SecondDC = Read-Host "Veuillez entrer le nom du second DC"
@@ -197,30 +213,10 @@ function FSDFS {
 
         Get-Volume $Letter | Select-Object -Property DriveLetter
 
-        $Compteur = 0
-        do {
-            $Compteur++
-
-            if ($Compteur -eq 1) {
-                $Loop = Read-Host "Voulez-vous créer un dossier pour le partage ? (Y/N)"
-            }
-            else {
-                $Loop = "yes"
-            }
-            if ($Loop -eq "yes" -or $Loop -eq "y" -or $Loop -eq "oui") {
-                $NewFolderName = Read-Host "Nommer le nouveau dossier"
-                New-Item -ItemType Directory -Path "$($Letter):\Files\$NewFolderName" | Out-Host
-                $Loop2 = Read-Host "Voulez-vous créer autre dossier pour le partage ? (Y/N)"
-            }
-            elseif ($Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non") {
-                Write-Host "Fin de la création"
-
-            }
-        } until ($Loop2 -eq "no" -or $Loop2 -eq "n" -or $Loop2 -eq "non" -or $Loop -eq "no" -or $Loop -eq "n" -or $Loop -eq "non")
-
         $ESID = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
         $EName = $ESID.Translate([System.Security.Principal.NTAccount]).Value
         $ShareName = Read-Host "Nommer le partage"
+        New-Item -ItemType Directory -Path "$($Letter):\Files\" | Out-Host
         New-SmbShare -Name $ShareName -Path "$($Letter):\Files\" -FullAccess $EName | Out-Host
     }
 
