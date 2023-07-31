@@ -270,7 +270,7 @@ function EPSIC {
         }
     }
     function IC {
-        $VM = Get-VM | Select-Object Name | Out-ConsoleGridView -OutputMode Single
+        $VM = Get-VM | Select-Object Name | Out-GridView -PassThru
         $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
         if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale") {
             $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"

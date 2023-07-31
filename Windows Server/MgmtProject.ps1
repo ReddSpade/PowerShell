@@ -68,8 +68,10 @@ function PrAd {
                     $FQDN = (Resolve-DnsName -Name $DNSIP).NameHost
                     $DomainRaw = $FQDN -Split "\." | Select-Object -Last 2
                     $DomainName = $DomainRaw -Join "."
-                    $Credentials = "Administrateur"
-                    Add-Computer -Domain $DomainName -Restart -Credential $Credentials
+                    $DomainNETBIOSRaw = $DomainRaw | Select-Object -SkipLast 1
+                    $DomainNETIBIOS = "$DomainNETBIOSRaw\".ToUpper()
+                    $DomainAdmin = "$($DomainNETIBIOS)Administrateur"
+                    Add-Computer -Domain $DomainName -Restart -Credential $DomainAdmin
                 }
                 1 { $Disk = Get-Disk -Number 3 -ErrorAction SilentlyContinue
                     if ($Null -eq $Disk) {
@@ -92,6 +94,9 @@ function PrAd {
                     $FQDN = (Resolve-DnsName -Name $DNSIP).NameHost
                     $DomainRaw = $FQDN -Split "\." | Select-Object -Last 2
                     $DomainName = $DomainRaw -Join "."
+                    $DomainNETBIOSRaw = $DomainRaw | Select-Object -SkipLast 1 
+                    $DomainNETIBIOS = "$DomainNETBIOSRaw\".ToUpper()
+                    $DomainAdmin = "$($DomainNETIBIOS)Administrateur"
                     $ForestConfiguration = @{
                         '-DatabasePath'           = 'B:\NTDS';
                         '-DomainName'             = $DomainName;
@@ -105,7 +110,7 @@ function PrAd {
                         '-ReplicationSourceDC'    = $FQDN;
                         '-CriticalReplicationOnly'= $false;
                         '-SiteName'               = "Default-First-Site-Name";
-                        '-Credential'             =  Get-Credential
+                        '-Credential'             =  (Get-Credential $DomainAdmin)
                         }
                         Install-ADDSDomainController @ForestConfiguration
                     }
