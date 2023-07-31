@@ -43,7 +43,7 @@ function ReverseZone {
     $DNSInterface = Read-Host "Choisir le numero d`'interface"
     $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
     Get-DNSClientServerAddress -InterfaceIndex $DNSInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
-    Set-DnsClientServerAddress -InterfaceIndex $DNSInterface -ServerAddresses $DNSIP
+    Set-DnsClientServerAddress -InterfaceIndex $DNSInterface -ServerAddresses $DNSIP,
     $NetworkIP = Read-Host "Saisissez l`'adresse du reseau au format IP/CIDR"
 
     Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
@@ -97,7 +97,7 @@ function JoinAsDC {
     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
 
     Import-Module ADDSDeployment
-    $DomainName = Read-Host "Nommer le domaine"
+    $DomainName = Read-Host "Domain name ?"
     Install-ADDSDomainController `
     -NoGlobalCatalog:$false `
     -CreateDnsDelegation:$false `

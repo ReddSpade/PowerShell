@@ -3,7 +3,7 @@ function PrAd {
     $Prompt = "Faire choix"
     $IP = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration des &IP","Attribution d'IP Statique ou DHCP, setup du DNS, etc..")
     $WorkStation = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration des &Postes","Modification du nom du poste, Initialisation d'un disque, création des 3 disques pour AD (Sysvol, BDD, Logs)")
-    $Domain = [System.Management.Automation.Host.ChoiceDescription]::New("Rejoindre le &Domaine","Ajout du poste en tant qu'utilisateur ou contrôleur du Domaine")
+    $Domain = [System.Management.Automation.Host.ChoiceDescription]::New("Cofiguration du &Domaine","Ajout du poste en tant qu'utilisateur ou contrôleur du Domaine")
     $Options = [System.Management.Automation.Host.ChoiceDescription[]]($IP, $WorkStation, $Domain)
     $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
     Switch ($Choice) {
@@ -18,7 +18,7 @@ function PrAd {
                 0 { Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4AddressNetIP
                     [int]$SelectNIC = Read-Host "Index NIC ?"
                     Remove-NetRoute -InterfaceIndex $SelectNIC -Confirm:$false; Remove-NetIPAddress -InterfaceIndex $SelectNIC -Confirm:$false -ErrorAction SilentlyContinue
-                    Set-NetIPInterface -InterfaceIndex $SelectNIC -DHCP Enabled
+                    Set-NetIPInterface -InterfaceIndex $SelectNIC -DHCP Enabled;console
                 }
                 1 { Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4AddressNetIP
                     [int]$SelectNIC = Read-Host "Index NIC ?"
@@ -29,16 +29,16 @@ function PrAd {
                     $choix = Read-Host "Appliquer un masque sous réseau ? (Y/N)"
                     if ($choix -eq "oui" -or $choix -eq "yes" -or $choix -eq "y") {
                     $Mask = Read-Host "Choisir le masque sous-reseau"
-                    New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR -DefaultGateway $Mask
+                    New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR -DefaultGateway $Mask;console
                     }
                     elseif ($choix -eq "no" -or $choix -eq "non" -or $choix -eq "n") {
-                    New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR
+                    New-NetIPAddress -InterfaceIndex $SelectNIC -IPAddress $IPAdress -AddressFamily IPv4 -PrefixLength $CIDR;console
                     }
                 }
                 2 { Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4AddressNetIP
                     [int]$SelectNIC = Read-Host "Choisir le numero NIC souhaitee"
                     $DNSIP = Read-Host "Choisir les IP souhaitees"
-                    Set-DnsClientServerAddress -InterfaceIndex $SelectNIC -Addresses $DNSIP
+                    Set-DnsClientServerAddress -InterfaceIndex $SelectNIC -Addresses $DNSIP;console
                 }
             }
         }
@@ -51,7 +51,7 @@ function PrAd {
                 0 { Write-Host "Nom actuel du poste: $env:COMPUTERNAME" -ForegroundColor blue
                     $NewName = Read-Host -Prompt "Indiquer le nouveau nom du poste"
                     Rename-Computer -NewName $NewName.ToUpper()
-                    Write-Warning "Le poste va maintenant redémarrer."
+                    Write-Warning "Le poste va maintenant redémarrer"
                     Restart-Computer -Force
                 }
             }
@@ -64,64 +64,70 @@ function PrAd {
             $Options = [System.Management.Automation.Host.ChoiceDescription[]]($ADUser, $ADDC, $ADMainDC)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
             Switch ($Choice) {
-                0 { $DomainName = Read-Host "Nommer le domaine"
+                0 { $DNSIP = Get-DnsClientServerAddress | Select-Object -ExpandProperty ServerAddresses | Select-Object -First 1
+                    $FQDN = (Resolve-DnsName -Name $DNSIP).NameHost
+                    $DomainRaw = $FQDN -Split "\." | Select-Object -Last 2
+                    $DomainName = $DomainRaw -Join "."
                     $Credentials = "Administrateur"
                     Add-Computer -Domain $DomainName -Restart -Credential $Credentials
                 }
-                1 { #Todo Créer une boucle pour les 3 disques
-                    Get-Disk | Out-Host
-                    $DiskBDD = Read-Host "Sélectionner un disque pour la BDD"
-                    Initialize-Disk -Number $DiskBDD
-                    New-Partition -DiskNumber $DiskBDD -DriveLetter B -UseMaximumSize
+                1 { $Disk = Get-Disk -Number 3 -ErrorAction SilentlyContinue
+                    if ($Null -eq $Disk) {
+                        Write-Host "Disques SYSVOL BDD & LOGS absents de la VM"
+                    }
+                    else {
+                    Initialize-Disk -Number 1
+                    New-Partition -DiskNumber 1 -DriveLetter B -UseMaximumSize
                     Format-Volume -DriveLetter B -FileSystem NTFS -Confirm:$false -NewFileSystemLabel BDD
-                    Get-Disk | Out-Host
-                    $DiskLOGS = Read-Host "Sélectionner un disque pour les Logs"
-                    Initialize-Disk -Number $DiskLOGS
-                    New-Partition -DiskNumber $DiskLOGS -DriveLetter L -UseMaximumSize
+                    Initialize-Disk -Number 2
+                    New-Partition -DiskNumber 2 -DriveLetter L -UseMaximumSize
                     Format-Volume -DriveLetter L -FileSystem NTFS -Confirm:$false -NewFileSystemLabel LOGS
-                    Get-Disk | Out-Host
-                    $DiskSYSVOL = Read-Host "Sélectionner un disque pour le SYSVOL"
-                    Initialize-Disk -Number $DiskSYSVOL
-                    New-Partition -DiskNumber $DiskSYSVOL -DriveLetter S -UseMaximumSize
+                    Initialize-Disk -Number 3
+                    New-Partition -DiskNumber 3 -DriveLetter S -UseMaximumSize
                     Format-Volume -DriveLetter S -FileSystem NTFS -Confirm:$false -NewFileSystemLabel SYSVOL
 
                     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
                     Import-Module ADDSDeployment
-                    $DomainName = Read-Host "Nommer le domaine"
-                    Install-ADDSDomainController `
-                    -NoGlobalCatalog:$false `
-                    -CreateDnsDelegation:$false `
-                    -Credential (Get-Credential) `
-                    -CriticalReplicationOnly:$false `
-                    -DatabasePath "B:\NTDS" `
-                    -DomainName $DomainName `
-                    -InstallDns:$true `
-                    -LogPath "L:\NTDS" `
-                    -NoRebootOnCompletion:$false `
-                    -SiteName "Default-First-Site-Name" `
-                    -SysvolPath "S:\SYSVOL" `
-                    -Force:$true `
+                    $DNSIP = Get-DnsClientServerAddress | Select-Object -ExpandProperty ServerAddresses | Select-Object -First 1
+                    $FQDN = (Resolve-DnsName -Name $DNSIP).NameHost
+                    $DomainRaw = $FQDN -Split "\." | Select-Object -Last 2
+                    $DomainName = $DomainRaw -Join "."
+                    $ForestConfiguration = @{
+                        '-DatabasePath'           = 'B:\NTDS';
+                        '-DomainName'             = $DomainName;
+                        '-InstallDns'             = $true;
+                        '-LogPath'                = 'L:\NTDS';
+                        '-NoRebootOnCompletion'   = $false;
+                        '-SysvolPath'             = 'S:\SYSVOL';
+                        '-Force'                  = $true;
+                        '-CreateDnsDelegation'    = $false;
+                        '-NoGlobalCatalog'        = $false;
+                        '-ReplicationSourceDC'    = $FQDN;
+                        '-CriticalReplicationOnly'= $false;
+                        '-SiteName'               = "Default-First-Site-Name";
+                        '-Credential'             =  Get-Credential
+                        }
+                        Install-ADDSDomainController @ForestConfiguration
+                    }
                 }
-                2 { #Todo Créer une boucle pour les 3 disques
-                    Get-Disk | Out-Host
-                    $DiskBDD = Read-Host "Sélectionner un disque pour la BDD"
-                    Initialize-Disk -Number $DiskBDD
-                    New-Partition -DiskNumber $DiskBDD -DriveLetter B -UseMaximumSize
+                2 { $Disk = Get-Disk -Number 3 -ErrorAction SilentlyContinue
+                    if ($Null -eq $Disk) {
+                        Write-Host "Disques SYSVOL BDD & LOGS absents de la VM"
+                    }
+                    else {
+                    Initialize-Disk -Number 1
+                    New-Partition -DiskNumber 1 -DriveLetter B -UseMaximumSize
                     Format-Volume -DriveLetter B -FileSystem NTFS -Confirm:$false -NewFileSystemLabel BDD
-                    Get-Disk | Out-Host
-                    $DiskLOGS = Read-Host "Sélectionner un disque pour les Logs"
-                    Initialize-Disk -Number $DiskLOGS
-                    New-Partition -DiskNumber $DiskLOGS -DriveLetter L -UseMaximumSize
+                    Initialize-Disk -Number 2
+                    New-Partition -DiskNumber 2 -DriveLetter L -UseMaximumSize
                     Format-Volume -DriveLetter L -FileSystem NTFS -Confirm:$false -NewFileSystemLabel LOGS
-                    Get-Disk | Out-Host
-                    $DiskSYSVOL = Read-Host "Sélectionner un disque pour le SYSVOL"
-                    Initialize-Disk -Number $DiskSYSVOL
-                    New-Partition -DiskNumber $DiskSYSVOL -DriveLetter S -UseMaximumSize
+                    Initialize-Disk -Number 3
+                    New-Partition -DiskNumber 3 -DriveLetter S -UseMaximumSize
                     Format-Volume -DriveLetter S -FileSystem NTFS -Confirm:$false -NewFileSystemLabel SYSVOL
-                    Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
+
                     $NameNetBIOS = Read-Host "Nommez le NETBIOS"
                     $NameDomain = Read-Host "Nommez le domaine"
-
+                    Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
                     Import-Module ADDSDeployment
                     Install-ADDSForest `
                     -CreateDnsDelegation:$false `
@@ -135,13 +141,38 @@ function PrAd {
                     -NoRebootOnCompletion:$false `
                     -SysvolPath "S:\SYSVOL" `
                     -Force:$true
+                    }
                 }
             }
         }
     }
 }
 function ProAd {
-
+    $Title = "Menu de sélection Post AD"
+    $Prompt = "Faire choix"
+    $SDC = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration des Serveurs Contrôleur de &Domaine","Zone inversée DNS")
+    $SMB = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration des &Serveurs","Ajout de fonctionnalitées")
+    $AD = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration &Active Directory","Création de groupes, d'utilisateurs et d'OU")
+    $Options = [System.Management.Automation.Host.ChoiceDescription[]]($SDC, $SMB, $AD)
+    $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
+    Switch ($Choice) {
+        0 { $Title = "Configuration des Serveurs Contrôleur de Domaine"
+            $Prompt = "Faire choix"
+            $ReverseDNS = [System.Management.Automation.Host.ChoiceDescription]::New("Zone inversée &DNS","Création de la Zone Inversée pour les Contrôleurs de Domaine")
+            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($ReverseDNS)
+            $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
+            Switch ($Choice) {
+                0 { Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Out-Host
+                    $DNSInterface = Read-Host "Choisir le numero d`'interface"
+                    $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
+                    Get-DNSClientServerAddress -InterfaceIndex $DNSInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
+                    Set-DnsClientServerAddress -InterfaceIndex $DNSInterface -ServerAddresses $DNSIP
+                    $NetworkIP = Read-Host "Saisissez l`'adresse du reseau au format IP/CIDR"
+                    Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
+                    ipconfig /registerdns }
+            }
+        }
+    }
 }
 function console {
     [CmdletBinding()]
