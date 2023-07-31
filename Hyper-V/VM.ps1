@@ -10,7 +10,7 @@ function VMMgmt {
         [ValidateSet(1,2)][Int]$VMGen = (Read-Host "Génération 1 ou 2 ?"),
         [int]$VMCoreNumber = (Read-Host  "Combien de coeur pour la VM ?")
         )
-        New-Item -ItemType Directory -Name $VMName -Path $HVMPath
+        New-Item -ItemType Directory -Name $VMName.ToUpper() -Path $HVMPath
 
         Copy-Item -Path "$HVMPath\Sysprep\WIN22CORESYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
         New-VM -Name $VMName.ToUpper() -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen
@@ -27,7 +27,7 @@ function VMMgmt {
         [ValidateSet(1,2)][Int]$VMGen = (Read-Host "Génération 1 ou 2 ?"),
         [int]$VMCoreNumber = (Read-Host  "Combien de coeur pour la VM ?")
         )
-        New-Item -ItemType Directory -Name $VMName -Path $HVMPath
+        New-Item -ItemType Directory -Name $VMName.ToUpper() -Path $HVMPath
 
         Copy-Item -Path "$HVMPath\Sysprep\WIN22GUISYSPREP.vhdx" -Destination $HVMPath\$VMName\$VMName.vhdx
         New-VM -Name $VMName.ToUpper() -MemoryStartupBytes "$($VMRAM)GB" -Path $HVMPath -Generation $VMGen

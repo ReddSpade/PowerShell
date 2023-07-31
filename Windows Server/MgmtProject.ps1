@@ -94,9 +94,9 @@ function PrAd {
                     $FQDN = (Resolve-DnsName -Name $DNSIP).NameHost
                     $DomainRaw = $FQDN -Split "\." | Select-Object -Last 2
                     $DomainName = $DomainRaw -Join "."
-                    $DomainNETBIOSRaw = $DomainRaw | Select-Object -SkipLast 1 
-                    $DomainNETIBIOS = "$DomainNETBIOSRaw\".ToUpper()
-                    $DomainAdmin = "$($DomainNETIBIOS)Administrateur"
+                    $DomainNETBIOSRaw = $DomainRaw | Select-Object -SkipLast 1
+                    $DomainNETIBIOS = "$DomainNETBIOSRaw".ToUpper()
+                    $DomainAdmin = "$DomainNETIBIOS\Administrateur"
                     $ForestConfiguration = @{
                         '-DatabasePath'           = 'B:\NTDS';
                         '-DomainName'             = $DomainName;
@@ -112,7 +112,12 @@ function PrAd {
                         '-SiteName'               = "Default-First-Site-Name";
                         '-Credential'             =  (Get-Credential $DomainAdmin)
                         }
+                        if ($DomainNETIBIOS.Length -le 1 ) {
+                            Write-Error "Zone inversée non créée sur le Contrôleur Principal de Domaine" -ErrorAction Break
+                        }
+                        else {
                         Install-ADDSDomainController @ForestConfiguration
+                        }
                     }
                 }
                 2 { $Disk = Get-Disk -Number 3 -ErrorAction SilentlyContinue
@@ -163,22 +168,35 @@ function ProAd {
     Switch ($Choice) {
         0 { $Title = "Configuration des Serveurs Contrôleur de Domaine"
             $Prompt = "Faire choix"
-            $ReverseDNS = [System.Management.Automation.Host.ChoiceDescription]::New("Zone inversée &DNS","Création de la Zone Inversée pour les Contrôleurs de Domaine")
-            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($ReverseDNS)
+            $ReverseDNSDC01 = [System.Management.Automation.Host.ChoiceDescription]::New("Zone inversée DNS DC0&1","Création de la Zone Inversée DC01")
+            $ReverseDNSDC02 = [System.Management.Automation.Host.ChoiceDescription]::New("Zone inversée DNS DC0&2","Création de la Zone Inversée DC02")
+            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($ReverseDNSDC01,$ReverseDNSDC02)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
             Switch ($Choice) {
                 0 { Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Out-Host
-                    $DNSInterface = Read-Host "Choisir le numero d`'interface"
-                    $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
-                    Get-DNSClientServerAddress -InterfaceIndex $DNSInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
-                    Set-DnsClientServerAddress -InterfaceIndex $DNSInterface -ServerAddresses $DNSIP
+                    $NICInterface = Read-Host "Choisir le numero d`'interface"
+                    $DomainMainDCIP = (Get-NetIPAddress -InterfaceIndex $NICInterface -AddressFamily IPv4).IPAddress
+                    $DomainSecondDCIP = Read-Host "Choisir l'IP du second Contrôleur de domaine"
+                    Get-DNSClientServerAddress -InterfaceIndex $NICInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
+                    Set-DnsClientServerAddress -InterfaceIndex $NICInterface -ServerAddresses $DomainMainDCIP,$DomainSecondDCIP
                     $NetworkIP = Read-Host "Saisissez l`'adresse du reseau au format IP/CIDR"
                     Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
-                    ipconfig /registerdns }
+                    ipconfig /registerdns
+                }
+                1 {
+                    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Out-Host
+                    $NICInterface = Read-Host "Choisir le numero d`'interface"
+                    $DomainSecondDCIP = (Get-NetIPAddress -InterfaceIndex $NICInterface -AddressFamily IPv4).IPAddress
+                    $DomainMainDCIP = (Get-ADDomainController -AvoidSelf -Discover:$true).IPv4Address
+                    Get-DNSClientServerAddress -InterfaceIndex $NICInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
+                    Set-DnsClientServerAddress -InterfaceIndex $NICInterface -ServerAddresses $DomainSecondDCIP,$DomainMainDCIP
+                    ipconfig /registerdns
+                }
             }
         }
     }
 }
+
 function console {
     [CmdletBinding()]
     param(

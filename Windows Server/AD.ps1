@@ -161,7 +161,7 @@ function FSDFS {
         $Disk = Read-Host "Selectionnner un disque a initialiser"
         Initialize-Disk -Number $Disk | Out-Host
 
-        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name = 'Size(GB)'; Expression = {'{0:N2}' -f ($_.Size / 1GB) } } | Out-Host
+        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name = 'Size(GB)'; Expression = {{'{0:N2}' -f ($_.Size / 1GB) } }} | Out-Host
         $Letter = Read-Host "Selectionner la lettre a attribuer"
 
         New-Partition -DiskNumber $Disk -DriveLetter $Letter -UseMaximumSize | Out-Host
