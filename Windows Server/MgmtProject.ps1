@@ -60,11 +60,11 @@ function PrAd {
             $Prompt = "Faire choix"
             $ADUser = [System.Management.Automation.Host.ChoiceDescription]::New("Rejoindre le domaine en tant qu'&Utilisateur","Permet d'ajouter le poste de travail dans le domaine en tant qu'Ordinateur Standard")
             $ADDC = [System.Management.Automation.Host.ChoiceDescription]::New("Rejoindre le domaine en tant que &Contrôleur de Domaine","Permet d'ajouter le poste de travail dans le domaine en tant que Contrôleur de Domaine numéro 2")
-            $ADMainDC = [System.Management.Automation.Host.ChoiceDescription]::New("Créer la Forêt &Active Directory","Création de la Forêt Active Directory et configuration du poste en tant que Contrôleur Principal du domaine")
+            $ADMainDC = [System.Management.Automation.Host.ChoiceDescription]::New("Créer la Forêt &Active Directory","Création de la Forêt Active Directory, promotion en tant que Contrôleur de Domaine + Configuration DNS")
             $Options = [System.Management.Automation.Host.ChoiceDescription[]]($ADUser, $ADDC, $ADMainDC)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
             Switch ($Choice) {
-                0 { $DNSIP = Get-DnsClientServerAddress | Select-Object -ExpandProperty ServerAddresses | Select-Object -First 1
+                0 { $DNSIP = Get-DnsClientServerAddress -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses | Select-Object -First 1
                     $FQDN = (Resolve-DnsName -Name $DNSIP).NameHost
                     $DomainRaw = $FQDN -Split "\." | Select-Object -Last 2
                     $DomainName = $DomainRaw -Join "."
@@ -73,7 +73,17 @@ function PrAd {
                     $DomainAdmin = "$($DomainNETIBIOS)Administrateur"
                     Add-Computer -Domain $DomainName -Restart -Credential $DomainAdmin
                 }
-                1 { $Disk = Get-Disk -Number 3 -ErrorAction SilentlyContinue
+                1 { Import-Module -Name PSScheduledJob
+                    Register-ScheduledJob -Name "ReverseDNSSetup" -ScriptBlock {
+                    $NIC = (Get-NetAdapter).ifIndex
+                    $DomainMainDCIP = Get-dnsClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses -First 1
+                    Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
+                    Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $DomainMainDCIP
+                    ipconfig /registerdns
+                    Unregister-ScheduledJob *
+                    Remove-Job *
+                    }
+                    $Disk = Get-Disk -Number 3 -ErrorAction SilentlyContinue
                     if ($Null -eq $Disk) {
                         Write-Host "Disques SYSVOL BDD & LOGS absents de la VM"
                     }
@@ -113,14 +123,27 @@ function PrAd {
                         '-Credential'             =  (Get-Credential $DomainAdmin)
                         }
                         if ($DomainNETIBIOS.Length -le 1 ) {
-                            Write-Error "Zone inversée non créée sur le Contrôleur Principal de Domaine" -ErrorAction Break
+                            Write-Error "Erreur DNS, regarder le Contrôleur Principal du Domaine..." -ErrorAction Break
                         }
                         else {
                         Install-ADDSDomainController @ForestConfiguration
                         }
                     }
                 }
-                2 { $Disk = Get-Disk -Number 3 -ErrorAction SilentlyContinue
+                2 { Import-Module -Name PSScheduledJob
+                    Register-ScheduledJob -Name "ReverseDNSSetup" -ScriptBlock {
+                    $NIC = (Get-NetAdapter).ifIndex
+                    $DomainMainDCIP = (Get-NetIPAddress -InterfaceIndex $NIC -AddressFamily IPv4).IPAddress
+                    Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
+                    Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $DomainMainDCIP
+                    $NetworkIP = $DomainMainDCIP -Split "\."; $NetworkIP[3] = 0; $NetworkIP = $NetworkIP -Join "."; $NetworkIP += "/24"
+                    Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
+                    ipconfig /registerdns
+                    Unregister-ScheduledJob *
+                    Remove-Job *
+                    } -Trigger (New-JobTrigger -AtStartup) -ScheduledJobOption (New-ScheduledJobOption -RunElevated)
+
+                    $Disk = Get-Disk -Number 3 -ErrorAction SilentlyContinue
                     if ($Null -eq $Disk) {
                         Write-Host "Disques SYSVOL BDD & LOGS absents de la VM"
                     }
@@ -135,22 +158,24 @@ function PrAd {
                     New-Partition -DiskNumber 3 -DriveLetter S -UseMaximumSize
                     Format-Volume -DriveLetter S -FileSystem NTFS -Confirm:$false -NewFileSystemLabel SYSVOL
 
-                    $NameNetBIOS = Read-Host "Nommez le NETBIOS"
                     $NameDomain = Read-Host "Nommez le domaine"
+                    $NameNetBIOS = $NameDomain -Split "\."; $NameNetBIOS = $NameNetBIOS[0].ToUpper()
                     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
                     Import-Module ADDSDeployment
-                    Install-ADDSForest `
-                    -CreateDnsDelegation:$false `
-                    -DatabasePath "B:\NTDS" `
-                    -DomainMode "WinThreshold" `
-                    -DomainName: $NameDomain `
-                    -DomainNetbiosName: $NameNetBIOS `
-                    -ForestMode "WinThreshold" `
-                    -InstallDns: $true `
-                    -LogPath "L:\NTDS" `
-                    -NoRebootOnCompletion:$false `
-                    -SysvolPath "S:\SYSVOL" `
-                    -Force:$true
+                    $NewForestConfiguration = @{
+                        '-CreateDnsDelegation'      = $false;
+                        '-DatabasePath'            = 'B:\NTDS';
+                        '-DomainMode'              = 'WinThreshold';
+                        '-DomainName'              = $NameDomain;
+                        '-DomainNetbiosName'       = $NameNetBIOS;
+                        '-ForestMode'              = 'WinThreshold';
+                        '-InstallDns'              = $true;
+                        '-LogPath'                 = 'L:\NTDS';
+                        '-NoRebootOnCompletion'    = $false;
+                        '-SysvolPath'              = 'S:\SYSVOL';
+                        '-Force'                   = $true;
+                    }
+                    Install-ADDSDomainController @NewForestConfiguration
                     }
                 }
             }
@@ -161,37 +186,97 @@ function ProAd {
     $Title = "Menu de sélection Post AD"
     $Prompt = "Faire choix"
     $SDC = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration des Serveurs Contrôleur de &Domaine","Zone inversée DNS")
-    $SMB = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration des &Serveurs","Ajout de fonctionnalitées")
+    $SDM = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration des &Serveurs","Ajout de fonctionnalitées")
     $AD = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration &Active Directory","Création de groupes, d'utilisateurs et d'OU")
-    $Options = [System.Management.Automation.Host.ChoiceDescription[]]($SDC, $SMB, $AD)
+    $Options = [System.Management.Automation.Host.ChoiceDescription[]]($SDC, $SDM, $AD)
     $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
     Switch ($Choice) {
         0 { $Title = "Configuration des Serveurs Contrôleur de Domaine"
             $Prompt = "Faire choix"
-            $ReverseDNSDC01 = [System.Management.Automation.Host.ChoiceDescription]::New("Zone inversée DNS DC0&1","Création de la Zone Inversée DC01")
-            $ReverseDNSDC02 = [System.Management.Automation.Host.ChoiceDescription]::New("Zone inversée DNS DC0&2","Création de la Zone Inversée DC02")
-            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($ReverseDNSDC01,$ReverseDNSDC02)
+            $ReverseDNS = [System.Management.Automation.Host.ChoiceDescription]::New("Zone inversée &DNS","Création de la Zone Inversée")
+            $DHCP = [System.Management.Automation.Host.ChoiceDescription]::New("Installation D&HCP + Failover","Installation du DHCP sur le DC01 et Failover sur le DC02")
+            $WDS = [System.Management.Automation.Host.ChoiceDescription]::New("Installation du &WDS sur le DC01","Installe le rôle Windows Deployment Services")
+            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($ReverseDNS, $DHCP, $WDS)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
             Switch ($Choice) {
-                0 { Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Out-Host
-                    $NICInterface = Read-Host "Choisir le numero d`'interface"
-                    $DomainMainDCIP = (Get-NetIPAddress -InterfaceIndex $NICInterface -AddressFamily IPv4).IPAddress
-                    $DomainSecondDCIP = Read-Host "Choisir l'IP du second Contrôleur de domaine"
-                    Get-DNSClientServerAddress -InterfaceIndex $NICInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
-                    Set-DnsClientServerAddress -InterfaceIndex $NICInterface -ServerAddresses $DomainMainDCIP,$DomainSecondDCIP
-                    $NetworkIP = Read-Host "Saisissez l`'adresse du reseau au format IP/CIDR"
-                    Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
-                    ipconfig /registerdns
+                0 { $DCCheck = Get-ADForest | Select-Object -ExpandProperty GlobalCatalogs
+                    if ($DCCheck.Count -lt 2) {
+                        Write-Warning "Il n'y a qu'un Contrôleur de doamine. Merci de rajouter le DC02."
+                    }
+                    else {
+                        $DomainMainDC = (Get-ADDomain).InfrastructureMaster
+                        $DomainMainDCIP = (Resolve-DNSName -Name $DomainMainDC | Where-Object -Property Type -eq A).IPAddress
+                        $DomainSecondDC = Get-ADForest | Select-Object -ExpandProperty GlobalCatalogs | Where-Object {$_ -notlike $DomainMainDC}
+                        $DomainSecondDCIP = (Resolve-DNSName -Name $DomainSecondDC | Where-Object -Property Type -eq A).IPAddress
+                        $NIC = (Get-NetAdapter).ifIndex
+                        $Own = [System.Net.Dns]::GetHostByName($env:computerName).HostName
+                        if ($DomainMainDC -eq $Own) {
+                            Write-Host "Contrôleur Principal identifié... Configuration" -ForegroundColor Blue; Start-Sleep -Seconds 1
+                            Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
+                            Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $DomainMainDCIP,$DomainSecondDCIP
+                            ipconfig /registerdns;console
+                        }
+                        else {
+                            Write-Host "Contrôleur Secondaire identifié... Configuration" -ForegroundColor Blue; Start-Sleep -Seconds 1
+                            Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
+                            Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $DomainSecondDCIP,$DomainMainDCIP
+                            ipconfig /registerdns;console
+                        }
+                    }
                 }
-                1 {
-                    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Out-Host
-                    $NICInterface = Read-Host "Choisir le numero d`'interface"
-                    $DomainSecondDCIP = (Get-NetIPAddress -InterfaceIndex $NICInterface -AddressFamily IPv4).IPAddress
-                    $DomainMainDCIP = (Get-ADDomainController -AvoidSelf -Discover:$true).IPv4Address
-                    Get-DNSClientServerAddress -InterfaceIndex $NICInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
-                    Set-DnsClientServerAddress -InterfaceIndex $NICInterface -ServerAddresses $DomainSecondDCIP,$DomainMainDCIP
-                    ipconfig /registerdns
+                1 {  if ($DCCheck.Count -lt 2) {
+                    Write-Warning "Il n'y a qu'un Contrôleur de doamine. Merci de rajouter le DC02."; Start-Sleep -Seconds 1; console
                 }
+                    else {
+                        Install-WindowsFeature DHCP -IncludeManagementTools
+
+                        $Pool = Read-Host "Saisir le nom de l`'etendue"
+                        $FirstIP = Read-Host "Saisir la premiere adresse attribuable de l`'etendue"
+                        $LastIP = Read-Host "Saisir la derniere adresse attribuable de l`'etendue"
+                        $PoolMask = Read-Host "Saisir le masque sous-reseau de l`'etendue"
+                        $DHCPGateway = Read-Host "Saisir la passerelle de l`'etendue"
+                        $NetworkID = Read-Host "Saisir l`'IP du reseau de l`'etendue" #Finit par 0
+                        Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
+                        $SelectNIC = Read-Host "Saisir le numéro de l`'interface"
+                        $DomainID = (Get-ADDomain).DNSRoot
+                        $FQDN = [System.Net.Dns]::GetHostByName($env:computerName).HostName
+
+                        Add-DHCPServerInDC -DNSName $FQDN
+                        Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2 #Fait disparaitre le message post installation DHCP
+                        Add-DHCPServerv4Scope -Name $Pool -StartRange $FirstIP -EndRange $LastIP -SubnetMask $PoolMask -State Active
+                        Set-DHCPServerv4OptionValue $NetworkID -DnsDomain $DomainID -DnsServer $SelectNIC -Router $DHCPGateway
+
+                        Invoke-Command -ComputerName $SecondDC -ScriptBlock {
+                            Install-WindowsFeature DHCP -IncludeManagementTools
+
+                            Add-DHCPServerInDC -DNSName [System.Net.Dns]::GetHostByName($env:computerName).HostName
+                            Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2
+                        }
+                        #Faire une boucle pour proposer ou nno
+                        $Scope = Get-DhcpServerv4Scope -ComputerName $DHCPMaster
+                        $FailOverName = Read-Host -Prompt "Nommer le nom du Basculement"
+                        $Partner = Read-Host -Prompt "Nommer le server du 2e DHCP"
+                        $Secret = Read-Host -Prompt "Créer le mot de passe du Failover" -AsSecureString
+
+                        Add-DhcpServerv4Failover -Name $FailOverName -ComputerName $DHCPMaster -PartnerServer $Partner -ServerRole Standby -ScopeId $Scope.ScopeId -SharedSecret $Secret
+                    }
+                }
+                2 {
+                    Write-Host "Work-In-Progress !" -ForegroundColor Green; Start-Sleep -Seconds 1; console
+                }
+            }
+        }
+        1 { $Title = "Configuration des Serveurs Membre du Domaine"
+            $Prompt = "Faire choix"
+            $FSDFS = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration du Serveur de &Fichier et réplique DFS","Nécessite 2 Contrôleurs de Domaine et 2 Serveurs de Fichier")
+            $RAID = [System.Management.Automation.Host.ChoiceDescription]::New("Ajout d'un Système &RAID","Configuration d'un système RAID 1 ou 5")
+            $LUN = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration d'une &LUN avec cible iSCSI","Création d'un pool LUN et d'une Cible iSCSI associée")
+            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($FSDFS, $RAID, $LUN)
+            $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
+            Switch ($Choice) {
+                0 {Write-Host "Work-In-Progress !" -ForegroundColor Green; Start-Sleep -Seconds 1; console}
+                1 {Write-Host "Work-In-Progress !" -ForegroundColor Green; Start-Sleep -Seconds 1; console}
+                2 {Write-Host "Work-In-Progress !" -ForegroundColor Green; Start-Sleep -Seconds 1; console}
             }
         }
     }

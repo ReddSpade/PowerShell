@@ -39,11 +39,10 @@ function AD {
 
 function ReverseZone {
     #todo Problématique: Pas de configuration sur le DC02
-    Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Out-Host
-    $DNSInterface = Read-Host "Choisir le numero d`'interface"
-    $DNSIP = (Get-NetIPAddress -InterfaceIndex $DNSInterface -AddressFamily IPv4).IPAddress
+    $NIC = (Get-NetAdapter).ifIndex
+    $DNSIP = (Get-NetIPAddress -InterfaceIndex $NIC -AddressFamily IPv4).IPAddress
     Get-DNSClientServerAddress -InterfaceIndex $DNSInterface -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
-    Set-DnsClientServerAddress -InterfaceIndex $DNSInterface -ServerAddresses $DNSIP,
+    Set-DnsClientServerAddress -InterfaceIndex $DNSInterface -ServerAddresses $DNSIP
     $NetworkIP = Read-Host "Saisissez l`'adresse du reseau au format IP/CIDR"
 
     Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
@@ -122,7 +121,7 @@ function JoinADAsUser { #? Fonction pour rejoindre le domaine en tant qu'utilisa
 function FSDFS {
     Get-ADComputer -Filter * | Select-Object -Property DNShostname
     #!Requiert 2 contrôleurs de domaine et deux serveurs de fichier pour fonctionner
-    $FirstDC = Read-Host "Veuillez entrer le nom du premier DC"
+    $FirstDC = (Read-Host "Veuillez entrer le nom du premier DC")
     $SecondDC = Read-Host "Veuillez entrer le nom du second DC"
     $FirstFS = Read-Host "Veuillez entrer le nom du premier FS"
     $SecondFS = Read-Host "Veuillez entrer le nom du second FS"
@@ -206,7 +205,7 @@ function FSDFS {
         $Disk = Read-Host "Selectionnner un disque a initialiser"
         Initialize-Disk -Number $Disk | Out-Host
 
-        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name = 'Size(GB)'; Expression = {'{0:N2}' -f ($_.Size / 1GB) } } | Out-Host
+        Get-Volume | Select-Object DriveLetter, FileSystemLabel, @{Name = 'Size(GB)'; Expression = {($_.Size / 1GB)}} | Out-Host
         $Letter = Read-Host "Selectionner la lettre a attribuer"
 
         New-Partition -DiskNumber $Disk -DriveLetter $Letter -UseMaximumSize | Out-Host
