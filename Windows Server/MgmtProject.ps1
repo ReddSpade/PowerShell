@@ -76,8 +76,9 @@ function PrAd {
                 1 { Import-Module -Name PSScheduledJob
                     Register-ScheduledJob -Name "ReverseDNSSetup" -ScriptBlock {
                     $NIC = (Get-NetAdapter).ifIndex
-                    $DomainMainDCIP = Get-dnsClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses -First 1
-                    Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
+                    $DomainMainDC = (Get-ADDomain).DNSRoot
+                    $DomainMainDCIP = (Resolve-DNSName -Name $DomainMainDC | Where-Object -Property Type -eq A).IPAddress
+                    Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6,IPv4 | Set-DnsClientserveraddress -ResetServerAddresses
                     Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $DomainMainDCIP
                     ipconfig /registerdns
                     Unregister-ScheduledJob *
@@ -134,7 +135,7 @@ function PrAd {
                     Register-ScheduledJob -Name "ReverseDNSSetup" -ScriptBlock {
                     $NIC = (Get-NetAdapter).ifIndex
                     $DomainMainDCIP = (Get-NetIPAddress -InterfaceIndex $NIC -AddressFamily IPv4).IPAddress
-                    Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
+                    Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6,IPv4 | Set-DnsClientserveraddress -ResetServerAddresses
                     Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $DomainMainDCIP
                     $NetworkIP = $DomainMainDCIP -Split "\."; $NetworkIP[3] = 0; $NetworkIP = $NetworkIP -Join "."; $NetworkIP += "/24"
                     Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
@@ -163,7 +164,7 @@ function PrAd {
                     Add-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools -IncludeAllSubFeature
                     Import-Module ADDSDeployment
                     $NewForestConfiguration = @{
-                        '-CreateDnsDelegation'      = $false;
+                        '-CreateDnsDelegation'     = $false;
                         '-DatabasePath'            = 'B:\NTDS';
                         '-DomainMode'              = 'WinThreshold';
                         '-DomainName'              = $NameDomain;
@@ -175,7 +176,7 @@ function PrAd {
                         '-SysvolPath'              = 'S:\SYSVOL';
                         '-Force'                   = $true;
                     }
-                    Install-ADDSDomainController @NewForestConfiguration
+                    Install-ADDSForest @NewForestConfiguration
                     }
                 }
             }
@@ -199,60 +200,65 @@ function ProAd {
             $Options = [System.Management.Automation.Host.ChoiceDescription[]]($ReverseDNS, $DHCP, $WDS)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
             Switch ($Choice) {
-                0 { $DCCheck = Get-ADForest | Select-Object -ExpandProperty GlobalCatalogs
+                0 { $global:OwnFQDN = [System.Net.Dns]::GetHostByName($env:computerName).HostName
+                    $DCCheck = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName
                     if ($DCCheck.Count -lt 2) {
                         Write-Warning "Il n'y a qu'un Contrôleur de doamine. Merci de rajouter le DC02."
                     }
                     else {
-                        $DomainMainDC = (Get-ADDomain).InfrastructureMaster
-                        $DomainMainDCIP = (Resolve-DNSName -Name $DomainMainDC | Where-Object -Property Type -eq A).IPAddress
-                        $DomainSecondDC = Get-ADForest | Select-Object -ExpandProperty GlobalCatalogs | Where-Object {$_ -notlike $DomainMainDC}
-                        $DomainSecondDCIP = (Resolve-DNSName -Name $DomainSecondDC | Where-Object -Property Type -eq A).IPAddress
+                        $FQDNDC01 = (Get-ADDomain).InfrastructureMaster
+                        $FQDNDC01IP = (Resolve-DNSName -Name $FQDNDC01 | Where-Object -Property Type -eq A).IPAddress
+                        $FQDNDC02 = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName | Where-Object {$_ -notlike $FQDNDC01}
+                        $FQDNDC02IP = (Resolve-DNSName -Name $FQDNDC02 | Where-Object -Property Type -eq A).IPAddress
                         $NIC = (Get-NetAdapter).ifIndex
-                        $Own = [System.Net.Dns]::GetHostByName($env:computerName).HostName
-                        if ($DomainMainDC -eq $Own) {
+                        if ($FQDNDC01 -eq $OwnFQDN) {
                             Write-Host "Contrôleur Principal identifié... Configuration" -ForegroundColor Blue; Start-Sleep -Seconds 1
                             Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
-                            Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $DomainMainDCIP,$DomainSecondDCIP
-                            ipconfig /registerdns;console
+                            Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $FQDNDC01IP,$FQDNDC02IP
+                            ipconfig /registerdns
+                            Unregister-ScheduledJob *
+                            Remove-Job *; console
                         }
                         else {
                             Write-Host "Contrôleur Secondaire identifié... Configuration" -ForegroundColor Blue; Start-Sleep -Seconds 1
                             Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
-                            Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $DomainSecondDCIP,$DomainMainDCIP
+                            Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $FQDNDC02IP,$FQDNDC01IP
                             ipconfig /registerdns;console
+                            Unregister-ScheduledJob *
+                            Remove-Job *; console
                         }
                     }
                 }
-                1 {  if ($DCCheck.Count -lt 2) {
+                1 { $DCCheck = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName
+                    if ($DCCheck.Count -lt 2) {
                     Write-Warning "Il n'y a qu'un Contrôleur de doamine. Merci de rajouter le DC02."; Start-Sleep -Seconds 1; console
                 }
                     else {
                         Install-WindowsFeature DHCP -IncludeManagementTools
 
                         $Pool = Read-Host "Saisir le nom de l`'etendue"
-                        $FirstIP = Read-Host "Saisir la premiere adresse attribuable de l`'etendue"
-                        $LastIP = Read-Host "Saisir la derniere adresse attribuable de l`'etendue"
-                        $PoolMask = Read-Host "Saisir le masque sous-reseau de l`'etendue"
-                        $DHCPGateway = Read-Host "Saisir la passerelle de l`'etendue"
-                        $NetworkID = Read-Host "Saisir l`'IP du reseau de l`'etendue" #Finit par 0
+                        $FirstIP = Read-Host "Saisir la IP attribuable de l`'étendue"
+                        $LastIP = Read-Host "Saisir la IP attribuable de l`'étendue"
+                        $PoolMask = Read-Host "Saisir le masque sous-réseau de l`'étendue"
+                        $DHCPGateway = Read-Host "Saisir la passerelle de l`'étendue"
+                        $NetworkID = Read-Host "Saisir l`'IP du réseau de l`'étendue" #Finit par 0
                         Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
                         $SelectNIC = Read-Host "Saisir le numéro de l`'interface"
-                        $DomainID = (Get-ADDomain).DNSRoot
-                        $FQDN = [System.Net.Dns]::GetHostByName($env:computerName).HostName
+                        $Domain = (Get-ADDomain).DNSRoot
+                        $FQDNDC01 = [System.Net.Dns]::GetHostByName($env:computerName).HostName
+                        $FQDNDC02 = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName | Where-Object {$_ -notlike $DomainMainDC}
 
                         Add-DHCPServerInDC -DNSName $FQDN
                         Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2 #Fait disparaitre le message post installation DHCP
                         Add-DHCPServerv4Scope -Name $Pool -StartRange $FirstIP -EndRange $LastIP -SubnetMask $PoolMask -State Active
-                        Set-DHCPServerv4OptionValue $NetworkID -DnsDomain $DomainID -DnsServer $SelectNIC -Router $DHCPGateway
+                        Set-DHCPServerv4OptionValue $NetworkID -DnsDomain $Domain -DnsServer $SelectNIC -Router $DHCPGateway
 
                         Invoke-Command -ComputerName $SecondDC -ScriptBlock {
                             Install-WindowsFeature DHCP -IncludeManagementTools
-
                             Add-DHCPServerInDC -DNSName [System.Net.Dns]::GetHostByName($env:computerName).HostName
                             Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2
                         }
-                        #Faire une boucle pour proposer ou nno
+                        Add-DHCPServerInDC -DNSName $SecondDC
                         $Scope = Get-DhcpServerv4Scope -ComputerName $DHCPMaster
                         $FailOverName = Read-Host -Prompt "Nommer le nom du Basculement"
                         $Partner = Read-Host -Prompt "Nommer le server du 2e DHCP"
