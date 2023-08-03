@@ -66,7 +66,7 @@ function DHCP {
     Add-DHCPServerInDC -DNSName $FQDN
     Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2 #Fait disparaitre le message post installation DHCP
     Add-DHCPServerv4Scope -Name $Pool -StartRange $FirstIP -EndRange $LastIP -SubnetMask $PoolMask -State Active
-    Set-DHCPServerv4OptionValue $NetworkID -DnsDomain $DomainID -DnsServer $SelectNIC -Router $DHCPGateway
+    Set-DHCPServerv4OptionValue -ScopeID $NetworkID -DnsDomain $DomainID -DnsServer $SelectNIC -Router $DHCPGateway
 
     Invoke-Command -ComputerName $SecondDC -ScriptBlock {
         Install-WindowsFeature DHCP -IncludeManagementTools

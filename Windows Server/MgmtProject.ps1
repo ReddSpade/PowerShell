@@ -134,10 +134,10 @@ function PrAd {
                 2 { Import-Module -Name PSScheduledJob
                     Register-ScheduledJob -Name "ReverseDNSSetup" -ScriptBlock {
                     $NIC = (Get-NetAdapter).ifIndex
-                    $DomainMainDCIP = (Get-NetIPAddress -InterfaceIndex $NIC -AddressFamily IPv4).IPAddress
+                    $FQDNDC01IP = (Get-NetIPAddress -InterfaceIndex $NIC -AddressFamily IPv4).IPAddress
                     Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6,IPv4 | Set-DnsClientserveraddress -ResetServerAddresses
-                    Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $DomainMainDCIP
-                    $NetworkIP = $DomainMainDCIP -Split "\."; $NetworkIP[3] = 0; $NetworkIP = $NetworkIP -Join "."; $NetworkIP += "/24"
+                    Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $FQDNDC01IP
+                    $NetworkIP = $FQDNDC01IP -Split "\."; $NetworkIP[3] = 0; $NetworkIP = $NetworkIP -Join "."; $NetworkIP += "/24"
                     Add-DNSServerPrimaryZone -NetworkId $NetworkIP -ReplicationScope Domain -DynamicUpdate Secure
                     ipconfig /registerdns
                     Unregister-ScheduledJob *
@@ -195,7 +195,7 @@ function ProAd {
         0 { $Title = "Configuration des Serveurs Contrôleur de Domaine"
             $Prompt = "Faire choix"
             $ReverseDNS = [System.Management.Automation.Host.ChoiceDescription]::New("Zone inversée &DNS","Création de la Zone Inversée")
-            $DHCP = [System.Management.Automation.Host.ChoiceDescription]::New("Installation D&HCP + Failover","Installation du DHCP sur le DC01 et Failover sur le DC02")
+            $DHCP = [System.Management.Automation.Host.ChoiceDescription]::New("Installation D&HCP + Failover (Exécuter sur DC01)","Installation du DHCP sur le DC01 et Failover sur le DC02")
             $WDS = [System.Management.Automation.Host.ChoiceDescription]::New("Installation du &WDS sur le DC01","Installe le rôle Windows Deployment Services")
             $Options = [System.Management.Automation.Host.ChoiceDescription[]]($ReverseDNS, $DHCP, $WDS)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
@@ -237,34 +237,31 @@ function ProAd {
                         Install-WindowsFeature DHCP -IncludeManagementTools
 
                         $Pool = Read-Host "Saisir le nom de l`'etendue"
-                        $FirstIP = Read-Host "Saisir la IP attribuable de l`'étendue"
-                        $LastIP = Read-Host "Saisir la IP attribuable de l`'étendue"
+                        $FirstIP = Read-Host "Saisir la première IP attribuable de l`'étendue"
+                        $LastIP = Read-Host "Saisir la IP dernière attribuable de l`'étendue"
                         $PoolMask = Read-Host "Saisir le masque sous-réseau de l`'étendue"
                         $DHCPGateway = Read-Host "Saisir la passerelle de l`'étendue"
-                        $NetworkID = Read-Host "Saisir l`'IP du réseau de l`'étendue" #Finit par 0
-                        Get-NetIPConfiguration | Select-Object -Property InterfaceDescription,InterfaceIndex,IPv4Address | Format-Table
-                        $SelectNIC = Read-Host "Saisir le numéro de l`'interface"
+                        $NetworkIP = $FirstIP -Split "\."; $NetworkIP[3] = 0; $NetworkIP = $NetworkIP -Join "."
                         $Domain = (Get-ADDomain).DNSRoot
-                        $FQDNDC01 = [System.Net.Dns]::GetHostByName($env:computerName).HostName
-                        $FQDNDC02 = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName | Where-Object {$_ -notlike $DomainMainDC}
+                        $FQDNDC01 = (Get-ADDomain).InfrastructureMaster
+                        $FQDNDC01IP = Get-NetIPAddress -AddressFamily IPv4 | Select-Object -ExpandProperty IPaddress -First 1
+                        $FQDNDC02 = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName | Where-Object {$_ -notlike $FQDNDC01}
 
-                        Add-DHCPServerInDC -DNSName $FQDN
-                        Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2 #Fait disparaitre le message post installation DHCP
+                        Add-DHCPServerInDC -DNSName $FQDNDC01
+                        Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2 #?Fait disparaitre le message post installation DHCP
                         Add-DHCPServerv4Scope -Name $Pool -StartRange $FirstIP -EndRange $LastIP -SubnetMask $PoolMask -State Active
-                        Set-DHCPServerv4OptionValue $NetworkID -DnsDomain $Domain -DnsServer $SelectNIC -Router $DHCPGateway
+                        Set-DHCPServerv4OptionValue -ScopeID $NetworkIP -DnsDomain $Domain -DnsServer $FQDNDC01IP -Router $DHCPGateway
 
-                        Invoke-Command -ComputerName $SecondDC -ScriptBlock {
+                        Invoke-Command -ComputerName $FQDNDC02 -ScriptBlock {
                             Install-WindowsFeature DHCP -IncludeManagementTools
-                            Add-DHCPServerInDC -DNSName [System.Net.Dns]::GetHostByName($env:computerName).HostName
                             Set-ItemProperty -Path registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\ServerManager\Roles\12 -Name ConfigurationState -Value 2
                         }
-                        Add-DHCPServerInDC -DNSName $SecondDC
-                        $Scope = Get-DhcpServerv4Scope -ComputerName $DHCPMaster
-                        $FailOverName = Read-Host -Prompt "Nommer le nom du Basculement"
-                        $Partner = Read-Host -Prompt "Nommer le server du 2e DHCP"
+                        Add-DHCPServerInDC -DNSName $FQDNDC02
+                        $Scope = Get-DhcpServerv4Scope -ComputerName $FQDNDC01 | Select-Object -ExpandProperty ScopeId
+                        $FailOverName = Read-Host -Prompt "Nommer le Basculement"
                         $Secret = Read-Host -Prompt "Créer le mot de passe du Failover" -AsSecureString
 
-                        Add-DhcpServerv4Failover -Name $FailOverName -ComputerName $DHCPMaster -PartnerServer $Partner -ServerRole Standby -ScopeId $Scope.ScopeId -SharedSecret $Secret
+                        Add-DhcpServerv4Failover -Name $FailOverName -ComputerName $FQDNDC01 -PartnerServer $FQDNDC02 -ServerRole Standby -ScopeId $Scope -SharedSecret $Secret
                     }
                 }
                 2 {
