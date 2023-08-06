@@ -1,4 +1,3 @@
-#!TODO Ajouter la création des groupes, attribution des utilisateurs aux groupes, les droits des groupes sur les partages
 #Requires -Modules Hyper-V
 function VMMgmt {
     function WS22CORE {

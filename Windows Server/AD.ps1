@@ -119,18 +119,19 @@ function JoinADAsUser { #? Fonction pour rejoindre le domaine en tant qu'utilisa
     Add-Computer -Domain $DomainName -Restart -Credential $Credentials
 }
 function FSDFS {
-    Get-ADComputer -Filter * | Select-Object -Property DNShostname
-    #!Requiert 2 contrôleurs de domaine et deux serveurs de fichier pour fonctionner
-    $FirstDC = (Read-Host "Veuillez entrer le nom du premier DC")
-    $SecondDC = Read-Host "Veuillez entrer le nom du second DC"
-    $FirstFS = Read-Host "Veuillez entrer le nom du premier FS"
-    $SecondFS = Read-Host "Veuillez entrer le nom du second FS"
     $DomainName = (Get-ADDomain).dnsroot
+    $DomainSplit = $DomainName -Split "\."; $DomainOU01 = $DomainSplit[0]; $DomainOU02 = $DomainSplit[1]
+    $FQDNDC01 = (Get-ADDomain).InfrastructureMaster
+    $FQDNDC02 = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName | Where-Object {$_ -notlike $FQDNDC01}
+    $AllFS =  Get-ADComputer -Filter * | Select-Object -Property DNSHostName,DistinguishedName | Where-Object {$_ -like "*FS*" -or $_ -like "*SF*"}
+    $AllFS.DistinguishedName | Foreach-Object { Move-ADObject -Identity $_ -TargetPath "OU=Serveurs,DC=$DomainOU01,DC=$DomainOU02"}
+    $FQDNFS01 = $AllFS[0].DNSHostName
+    $FQDNFS02 = $AllFS[1].DNSHostName
     $NameSpace = Read-Host "Saisir le nom du partage"
-    $PathDC1 = "\\$FirstDC\$NameSpace"
-    $PathDC2 = "\\$SecondDC\$NameSpace"
-    $PathFS1 = "\\$FirstFS\$NameSpace"
-    $PathFS2 = "\\$SecondFS\$NameSpace"
+    $PathDC1 = "\\$FQDNDC01\$NameSpace"
+    $PathDC2 = "\\$FQDNDC02\$NameSpace"
+    $PathFS1 = "\\$FQDNFS01\$NameSpace"
+    $PathFS2 = "\\$FQDNFS02\$NameSpace"
     $DFSRoot = "\\$DomainName\$NameSpace"
     Get-WindowsFeature FS-DFS* | Install-WindowsFeature -IncludeManagementTools
     Get-WindowsFeature FS-BranchCache | Install-WindowsFeature -IncludeManagementTools
