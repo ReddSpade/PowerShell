@@ -287,10 +287,10 @@ function ProAd {
                     }
                     else {
                     $DomainName = (Get-ADDomain).dnsroot
-                    $DomainSplit = $DomainName -Split "\."; $DomainOU01 = $DomainSplit[0]; $DomainOU02 = $DomainSplit[1]
+                    $DomainRootOU = (Get-ADDomain).DistinguishedName
                     $FQDNDC02 = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName | Where-Object {$_ -notlike $FQDNDC01}
                     $AllFS =  Get-ADComputer -Filter * | Select-Object -Property DNSHostName,DistinguishedName | Where-Object {$_ -like "*FS*" -or $_ -like "*SF*"}
-                    New-ADOrganizationalUnit -Name "Serveurs" -Path "DC=$DomainOU01,DC=$DomainOU02"
+                    New-ADOrganizationalUnit -Name "Serveurs" -Path $DomainRootOU
                     $AllFS.DistinguishedName | Foreach-Object { Move-ADObject -Identity $_ -TargetPath "OU=Serveurs,DC=$DomainOU01,DC=$DomainOU02"}
                     $FQDNFS01 = $AllFS[0].DNSHostName
                     $FQDNFS02 = $AllFS[1].DNSHostName
@@ -424,18 +424,35 @@ function ProAd {
                     Format-Volume -DriveLetter $DiskLetter -FileSystem NTFS -Confirm:$false -NewFileSystemLabel "Files" | Out-Host
 
                     New-Item -ItemType Directory -Path "$($DiskLetter):\RemoteInstall"
-                    Invoke-Expression -Command "wdsutil /initialize-server /remInst:"W:\RemoteInstall""
+                    Invoke-Expression -Command "wdsutil /initialize-server /remInst:$($DiskLetter):\RemoteInstall"
                     Invoke-Expression -Command "wdsutil /set-server /AnswerClients:All /Authorize:Yes  /Transport /ObtainIpv4From:Dhcp"
                     Invoke-Expression -Command "wdsutil /start-server"
-                    Import-WDSbootimage -Path "$($CDLetter):\Sources\boot.wim" -NewImageName "Microsoft Windows Setup (x64)"
                     $CDLetter = $CD.DriveLetter
                     $Index = Get-WindowsImage -ImagePath "$($CDLetter):\Sources\install.esd" | Where-Object {$_.ImageName -like "*Professionnel"} | Select-Object -ExpandProperty ImageIndex
                     Export-WindowsImage -SourceImagePath "$($CDLetter):\Sources\install.esd" -SourceIndex $Index -DestinationImagePath "$($DiskLetter):\install.wim" -CompressionType Max -CheckIntegrity
+                    Import-WDSbootimage -Path "$($CDLetter):\Sources\boot.wim" -NewImageName "Microsoft Windows Setup (x64)"
                     New-WDSInstallImageGroup -Name "Windows 10"
                     Import-WdsInstallImage -Path "$($DiskLetter):\install.wim" -ImageGroup "Windows 10" -ImageName "Windows 10 Pro"
                 }
                 2 {Write-Host "Work-In-Progress !" -ForegroundColor Green; Start-Sleep -Seconds 1; console}
                 3 {Write-Host "Work-In-Progress !" -ForegroundColor Green; Start-Sleep -Seconds 1; console}
+            }
+        }
+        2 {
+            $Title = "Configuration Active Directory"
+            $Prompt = "Faire choix"
+            $NewOU = [System.Management.Automation.Host.ChoiceDescription]::New("Nouvelle Unité d'&Organisation","Nécessite 2 Contrôleurs de Domaine et 2 Serveurs de Fichier")
+            $NewGroup = [System.Management.Automation.Host.ChoiceDescription]::New("Nouveau &Groupe","Configuration d'un système RAID 1 ou 5")
+            $NewUser = [System.Management.Automation.Host.ChoiceDescription]::New("Nouvel &Utilisateur","Création d'un pool LUN et d'une Cible iSCSI associée")
+            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($NewOU, $NewGroup, $NewUser)
+            $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
+            Switch ($Choice) {
+                1 {}
+                2 {}
+                3 { $DomainRootOU = (Get-ADDomain).DistinguishedName
+                    $DefaultUserOU = "OU=Utilisateurs,$(Get-ADDomain)"
+                    $User
+                }
             }
         }
     }
