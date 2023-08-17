@@ -16,6 +16,7 @@ function VMMgmt {
         Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
         Remove-VMNetworkAdapter -VMName $VMName
+        Enable-VMIntegrationService -VMName $VMName -Name *
     }
     function WS22GUI {
         [CmdletBinding()]
@@ -33,6 +34,7 @@ function VMMgmt {
         Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
         Remove-VMNetworkAdapter -VMName $VMName
+        Enable-VMIntegrationService -VMName $VMName -Name *
     }
 
     function W10RSAT {
@@ -51,6 +53,7 @@ function VMMgmt {
         Add-VMHardDiskDrive -VMName $VMName -Path $HVMPath\$VMName\$VMName.vhdx
         Set-VM -Name $VMName -ProcessorCount $VMCoreNumber -CheckpointType Disabled
         Remove-VMNetworkAdapter -VMName $VMName
+        Enable-VMIntegrationService -VMName $VMName -Name *
     }
     function Ubuntu {
         $TPM = Test-Path "C:\Program Files\Multipass"

@@ -48,7 +48,7 @@ function PrAd {
             $Options = [System.Management.Automation.Host.ChoiceDescription[]]($Rename)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
             Switch ($Choice) {
-                0 { Write-Host "Nom actuel du poste: $env:COMPUTERNAME" -ForegroundColor blue
+                0 { Write-Host "Nom actuel du poste: $env:COMPUTERNAME" -ForegroundColor DarkCyan
                     $NewName = Read-Host -Prompt "Indiquer le nouveau nom du poste"
                     Rename-Computer -NewName $NewName.ToUpper()
                     Write-Warning "Le poste va maintenant redémarrer"
@@ -183,7 +183,7 @@ function PrAd {
         }
     }
 }
-function ProAd {
+function PostAd {
     $Title = "Menu de sélection Post AD"
     $Prompt = "Faire choix"
     $SDC = [System.Management.Automation.Host.ChoiceDescription]::New("Configuration des Serveurs Contrôleur de &Domaine","Zone inversée DNS")
@@ -211,7 +211,7 @@ function ProAd {
                         $FQDNDC02IP = (Resolve-DNSName -Name $FQDNDC02 | Where-Object -Property Type -eq A).IPAddress
                         $NIC = (Get-NetAdapter).ifIndex
                         if ($FQDNDC01 -eq $OwnFQDN) {
-                            Write-Host "Contrôleur Principal identifié... Configuration" -ForegroundColor Blue; Start-Sleep -Seconds 1
+                            Write-Host "Contrôleur Principal identifié... Configuration" -ForegroundColor DarkCyan; Start-Sleep -Seconds 1
                             Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
                             Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $FQDNDC01IP,$FQDNDC02IP
                             ipconfig /registerdns
@@ -221,7 +221,7 @@ function ProAd {
                             console
                         }
                         else {
-                            Write-Host "Contrôleur Secondaire identifié... Configuration" -ForegroundColor Blue; Start-Sleep -Seconds 1
+                            Write-Host "Contrôleur Secondaire identifié... Configuration" -ForegroundColor DarkCyan; Start-Sleep -Seconds 1
                             Get-DNSClientServerAddress -InterfaceIndex $NIC -AddressFamily IPv6 | Set-DnsClientserveraddress -ResetServerAddresses
                             Set-DnsClientServerAddress -InterfaceIndex $NIC -ServerAddresses $FQDNDC02IP,$FQDNDC01IP
                             ipconfig /registerdns
@@ -266,7 +266,7 @@ function ProAd {
                         $FailOverName = Read-Host -Prompt "Nommer le Basculement"
                         $Secret = Read-Host -Prompt "Créer le mot de passe du Failover" -AsSecureString
 
-                        Add-DhcpServerv4Failover -Name $FailOverName -ComputerName $FQDNDC01 -PartnerServer $FQDNDC02 -ServerRole Standby -ScopeId $Scope -SharedSecret $Secret
+                        Add-DhcpServerv4Failover -Name $FailOverName -ComputerName $FQDNDC01 -PartnerServer $FQDNDC02 -ServerRole Primary -ScopeId $Scope -SharedSecret $Secret
                     }
                 }
             }
@@ -290,8 +290,8 @@ function ProAd {
                     $DomainRootOU = (Get-ADDomain).DistinguishedName
                     $FQDNDC02 = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName | Where-Object {$_ -notlike $FQDNDC01}
                     $AllFS =  Get-ADComputer -Filter * | Select-Object -Property DNSHostName,DistinguishedName | Where-Object {$_ -like "*FS*" -or $_ -like "*SF*"}
-                    New-ADOrganizationalUnit -Name "Serveurs" -Path $DomainRootOU
-                    $AllFS.DistinguishedName | Foreach-Object { Move-ADObject -Identity $_ -TargetPath "OU=Serveurs,DC=$DomainOU01,DC=$DomainOU02"}
+                    New-ADOrganizationalUnit -Name "Serveurs" -Path $DomainRootOU -ProtectedFromAccidentalDeletion:$false
+                    $AllFS.DistinguishedName | Foreach-Object { Move-ADObject -Identity $_ -TargetPath "OU=Serveurs,$(Get-ADDomain)"}
                     $FQDNFS01 = $AllFS[0].DNSHostName
                     $FQDNFS02 = $AllFS[1].DNSHostName
                     $NameSpace = Read-Host "Saisir le nom du partage"
@@ -425,7 +425,7 @@ function ProAd {
 
                     New-Item -ItemType Directory -Path "$($DiskLetter):\RemoteInstall"
                     Invoke-Expression -Command "wdsutil /initialize-server /remInst:$($DiskLetter):\RemoteInstall"
-                    Invoke-Expression -Command "wdsutil /set-server /AnswerClients:All /Authorize:Yes  /Transport /ObtainIpv4From:Dhcp"
+                    Invoke-Expression -Command "wdsutil /set-server /AnswerClients:All /Authorize:Yes  /UseDHCPPorts:No /DHCPOption60:Yes /Transport /ObtainIpv4From:Dhcp"
                     Invoke-Expression -Command "wdsutil /start-server"
                     $CDLetter = $CD.DriveLetter
                     $Index = Get-WindowsImage -ImagePath "$($CDLetter):\Sources\install.esd" | Where-Object {$_.ImageName -like "*Professionnel"} | Select-Object -ExpandProperty ImageIndex
@@ -438,7 +438,11 @@ function ProAd {
                 3 {Write-Host "Work-In-Progress !" -ForegroundColor Green; Start-Sleep -Seconds 1; console}
             }
         }
-        2 {
+        2 { $DomainRootOU = "$(Get-ADDomain)"
+            $RootLayerA = "Direction"
+            $RootLayerB = "Service"
+            $RootLayerC = "Commun"
+            $GeneralOU = @("Utilisateurs","Groupes","Ordinateurs","Imprimantes")
             $Title = "Configuration Active Directory"
             $Prompt = "Faire choix"
             $NewOU = [System.Management.Automation.Host.ChoiceDescription]::New("Nouvelle Unité d'&Organisation","Nécessite 2 Contrôleurs de Domaine et 2 Serveurs de Fichier")
@@ -447,11 +451,63 @@ function ProAd {
             $Options = [System.Management.Automation.Host.ChoiceDescription[]]($NewOU, $NewGroup, $NewUser)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
             Switch ($Choice) {
-                1 {}
-                2 {}
-                3 { $DomainRootOU = (Get-ADDomain).DistinguishedName
-                    $DefaultUserOU = "OU=Utilisateurs,$(Get-ADDomain)"
-                    $User
+                0 { #Layer1, Racine
+                    Write-Host -ForegroundColor DarkCyan "Pensez à modifier dans le script les OU afin que ça ressemble ce que vous voulez"
+                    $RootLayer1 = Read-Host -Prompt "Nom de l'OU racine qui contiendra le reste des OU?"
+                    New-ADOrganizationalUnit -Name $RootLayer1 -Path "$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
+                    Get-ADOrganizationalUnit -Identity "OU=Serveurs,$DomainRootOU)" | Move-ADObject -TargetPath "$RootLayer1,$DomainRootOU"
+
+                    #LayerA, en dessous du Layer1
+                    New-ADOrganizationalUnit -Name $RootLayerA -Path "OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
+                    $GeneralOU | Foreach-Object {
+                    New-ADOrganizationalUnit -Name $_ -Path "OU=$RootLayerA,OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
+                    }
+
+                    #LayerB, en dessous du Layer1
+                    New-ADOrganizationalUnit -Name $RootLayerB -Path "OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
+                    $GeneralOU | Foreach-Object {
+                        New-ADOrganizationalUnit -Name $_ -Path "OU=$RootLayerB,OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
+                        }
+
+                    #LayerC, en dessous du Layer1
+                    New-ADOrganizationalUnit -Name $RootLayerC -Path "OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
+                    $GeneralOU | Foreach-Object {
+                        New-ADOrganizationalUnit -Name $_ -Path "OU=$RootLayerC,OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
+                        }
+                }
+                1 { Write-Host "Work-In-Progress !" -ForegroundColor Green; Start-Sleep -Seconds 1; console }
+                2 { $Script:Layers = @($RootLayerA, $RootLayerB, $RootLayerC)
+                    Import-Module -Name NameIT
+                    $Layers | ForEach-Object {
+                        $LayerName = $_
+                        [int]$UserNumber = Read-Host -Prompt "Combien d'utilisateurs créer dans $LayerName ?"
+                        $PreCSV = Invoke-Generate "[Person] $LayerName" -Count $UserNumber
+                        $CSVData = $PreCSV | Foreach-Object {
+                            $Headers = $_ -Split " "
+                            [PSCustomObject]@{
+                                GivenName = $Headers[0]
+                                Surname = $Headers[1]
+                                OU = $Headers[2]
+                            }
+                        }
+                        $CSVData | Export-CSV -Path "$env:USERPROFILE\Documents\ADUser$LayerName.csv" -Delimiter ";" -Encoding utf8 -NoTypeInformation
+                    }
+                    Get-ChildItem -Path "$env:USERPROFILE\Documents" | Where-Object -Property Extension -eq ".csv" | Select-Object -ExpandProperty FullName | Foreach-Object {
+                        Import-Csv -Path $_ -Delimiter ";" -Encoding utf8 | Foreach-Object {
+                            $UserSurname = $_.Surname
+                            $UserGivenName = $_.GivenName
+                            $UserDisplayName = "$($_.Surname.ToUpper()) $($_.GivenName)"
+                            $UserCommonName = $_.GivenName.Substring(0,1).ToLower() + $_.Surname.Substring(0).ToLower()
+                            $SamAccountName = $UserCommonName
+                            $UserPrincipalName = "$($_.GivenName.ToLower()).$($_.Surname.ToLower())@$((Get-ADDomain).DNSRoot)"
+                            $Mail = $UserPrincipalName
+                            $AccountPassword = ConvertTo-SecureString "Lapinou33+" -AsPlainText -Force
+                            $Path = "OU=$($GeneralOU[0]),OU=$($Layers[$i]),OU=$(Get-ADOrganizationalUnit -Filter * -SearchBase $(Get-ADDomain) -SearchScope OneLevel | Where-Object -Property Name -NotLike *Domain* | Select-Object -ExpandProperty Name),$DomainRootOU"
+                            Wait-Debugger
+                            New-ADUser -Name $UserCommonName -Surname $UserSurname -GivenName $UserGivenName -SamAccountName $SamAccountName -UserPrincipalName $UserPrincipalName -DisplayName $UserDisplayName -EmailAddress $Mail -AccountPassword $AccountPassword -Path $Path  -ChangePasswordAtLogon:$true -Enabled:$true
+                        }
+                        $i++
+                    }
                 }
             }
         }
@@ -472,7 +528,7 @@ function console {
     $Choice = Read-Host -Prompt "Faire choix"
     Switch ($Choice) {
         1 {PrAd}
-        2 {ProAd}
+        2 {PostAd}
         Q {Exit}
         default {console}
     }
