@@ -455,7 +455,7 @@ function PostAd {
                     Write-Host -ForegroundColor DarkCyan "Pensez à modifier dans le script les OU afin que ça ressemble ce que vous voulez"
                     $RootLayer1 = Read-Host -Prompt "Nom de l'OU racine qui contiendra le reste des OU?"
                     New-ADOrganizationalUnit -Name $RootLayer1 -Path "$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
-                    Get-ADOrganizationalUnit -Identity "OU=Serveurs,$DomainRootOU)" | Move-ADObject -TargetPath "$RootLayer1,$DomainRootOU"
+                    Get-ADOrganizationalUnit -Identity "OU=Serveurs,$DomainRootOU)" | Move-ADObject -TargetPath "$RootLayer1,$DomainRootOU" -ErrorAction SilentlyContinue
 
                     #LayerA, en dessous du Layer1
                     New-ADOrganizationalUnit -Name $RootLayerA -Path "OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
@@ -492,8 +492,10 @@ function PostAd {
                         }
                         $CSVData | Export-CSV -Path "$env:USERPROFILE\Documents\ADUser$LayerName.csv" -Delimiter ";" -Encoding utf8 -NoTypeInformation
                     }
+                    $i=0
                     Get-ChildItem -Path "$env:USERPROFILE\Documents" | Where-Object -Property Extension -eq ".csv" | Select-Object -ExpandProperty FullName | Foreach-Object {
                         Import-Csv -Path $_ -Delimiter ";" -Encoding utf8 | Foreach-Object {
+                            $Layers = @($RootLayerA, $RootLayerB, $RootLayerC)
                             $UserSurname = $_.Surname
                             $UserGivenName = $_.GivenName
                             $UserDisplayName = "$($_.Surname.ToUpper()) $($_.GivenName)"
