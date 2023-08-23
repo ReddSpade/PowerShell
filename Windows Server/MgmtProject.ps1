@@ -275,7 +275,7 @@ function PostAd {
                     #LayerA, en dessous du Layer1
                     New-ADOrganizationalUnit -Name $RootLayerA -Path "OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
                     $GeneralOU | Foreach-Object {
-                    New-ADOrganizationalUnit -Name $_ -Path "OU=$RootLayerA,OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
+                        New-ADOrganizationalUnit -Name $_ -Path "OU=$RootLayerA,OU=$RootLayer1,$DomainRootOU" -ProtectedFromAccidentalDeletion:$false
                     }
 
                     #LayerB, en dessous du Layer1
@@ -296,16 +296,13 @@ function PostAd {
                         $GlobalGroup = "GG_$_"
                         $UniversalGroup = "GU_$_"
                         $DomainLocalGroup = "GDL_$($_)_RW"
-                        $Groups = @($GlobalGroup,$UniversalGroup,$DomainLocalGroup)
 
                         $Path = "OU=$($GeneralOU[1]),OU=$_,OU=$(Get-ADOrganizationalUnit -Filter * -SearchBase $(Get-ADDomain) -SearchScope OneLevel | Where-Object -Property Name -NotLike *Domain* | Select-Object -ExpandProperty Name),$DomainRootOU"
-
-                        $Groups | Foreach-Object {
-                            New-ADGroup -GroupCategory Security -GroupScope Global -Name $_ -Path $Path -Verbose
-
-                            Add-ADGroupMember -Identity $UniversalGroup -Members  $GlobalGroup -Verbose
-                            Add-ADGroupMember -Identity $DomainLocalGroup -Members  $UniversalGroup -Verbose
-                        }
+                        New-ADGroup -GroupCategory Security -GroupScope Global -Name $GlobalGroup -Path $Path
+                        New-ADGroup -GroupCategory Security -GroupScope Universal -Name $UniversalGroup -Path $Path
+                        New-ADGroup -GroupCategory Security -GroupScope DomainLocal -Name $DomainLocalGroup -Path $Path
+                        Add-ADGroupMember -Identity $UniversalGroup -Members $GlobalGroup
+                        Add-ADGroupMember -Identity $DomainLocalGroup -Members $UniversalGroup
                     }
                 }
                 2 { $Layers = @($RootLayerA, $RootLayerB, $RootLayerC)
