@@ -263,6 +263,7 @@ function PostAd {
             $NewOU = [System.Management.Automation.Host.ChoiceDescription]::New("Nouvelle Unité d'&Organisation","Nécessite 2 Contrôleurs de Domaine et 2 Serveurs de Fichier")
             $NewGroup = [System.Management.Automation.Host.ChoiceDescription]::New("Nouveau &Groupe","Configuration d'un système RAID 1 ou 5")
             $NewUser = [System.Management.Automation.Host.ChoiceDescription]::New("Nouvel &Utilisateur","Création d'un pool LUN et d'une Cible iSCSI associée")
+            $AddGroup = [System.Management.Automation.Host.ChoiceDescription]::New("&Ajout d'utilisateurs aux groupes","Reprend le CSV créé pour les utilisateurs et les ajoutes aux groupes")
             $Options = [System.Management.Automation.Host.ChoiceDescription[]]($NewOU, $NewGroup, $NewUser)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
             Switch ($Choice) {
@@ -310,13 +311,14 @@ function PostAd {
                     $Layers | ForEach-Object {
                         $LayerName = $_
                         [int]$UserNumber = Read-Host -Prompt "Combien d'utilisateurs créer dans $LayerName ?"
-                        $PreCSV = Invoke-Generate "[Person] $LayerName" -Count $UserNumber
+                        $PreCSV = Invoke-Generate "[Person] $LayerName GDL_$($LayerName)_RW" -Count $UserNumber
                         $CSVData = $PreCSV | Foreach-Object {
                             $Headers = $_ -Split " "
                             [PSCustomObject]@{
                                 GivenName = $Headers[0]
                                 Surname = $Headers[1]
                                 OU = $Headers[2]
+                                Group = $Headers[3]
                             }
                         }
                         $CSVData | Export-CSV -Path "$env:USERPROFILE\Documents\ADUser$LayerName.csv" -Delimiter ";" -Encoding utf8 -NoTypeInformation
@@ -331,9 +333,10 @@ function PostAd {
                             $UserPrincipalName = "$($_.GivenName.ToLower()).$($_.Surname.ToLower())@$((Get-ADDomain).DNSRoot)"
                             $Mail = $UserPrincipalName
                             $AccountPassword = ConvertTo-SecureString "Lapinou33+" -AsPlainText -Force
+                            $ADGroup = $_.Group
                             $Path = "OU=$($GeneralOU[0]),OU=$($_.OU),OU=$(Get-ADOrganizationalUnit -Filter * -SearchBase $(Get-ADDomain) -SearchScope OneLevel | Where-Object -Property Name -NotLike *Domain* | Select-Object -ExpandProperty Name),$DomainRootOU"
-
-                            New-ADUser -Name $UserCommonName -Surname $UserSurname -GivenName $UserGivenName -SamAccountName $SamAccountName -UserPrincipalName $UserPrincipalName -DisplayName $UserDisplayName -EmailAddress $Mail -AccountPassword $AccountPassword -Path $Path  -ChangePasswordAtLogon:$true -Enabled:$true
+                            New-ADUser -Name $UserCommonName -Surname $UserSurname -GivenName $UserGivenName -SamAccountName  $SamAccountName -UserPrincipalName $UserPrincipalName -DisplayName $UserDisplayName -EmailAddress $Mail -AccountPassword $AccountPassword -Path $Path  -ChangePasswordAtLogon:$true -Enabled:$true
+                            Add-ADGroupMember -Identity $ADGroup -Members $SamAccountName
                         }
                     }
                 }
