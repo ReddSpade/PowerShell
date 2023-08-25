@@ -1,3 +1,4 @@
+#todo Améliorer la créationd de dossiers users, faire ACL
 function PostAd {
     $Title = "Menu de sélection Post AD"
     $Prompt = "Faire choix"
@@ -205,7 +206,7 @@ function PostAd {
 
                     New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $PathDC01
                     New-DfsnRoot -Path $DFSRoot -Type DomainV2 -TargetPath $PathDC02
-                    $Folders = @(Get-ChildItem -Path "\\$FQDNFS01\Partage\")
+                    $Folders = @(Get-ChildItem -Path $PathFS01)
                     $Folders.Name | ForEach-Object {
                     New-DfsnFolder -Path "$DFSRoot\$_" -TargetPath "$PathFS01\$_" -EnableTargetFailback $true -Description 'Folder for legacy software.'
                     New-DfsnFolderTarget -Path "$DFSRoot\$_" -TargetPath "$PathFS02\$_"}
@@ -263,8 +264,8 @@ function PostAd {
             $NewOU = [System.Management.Automation.Host.ChoiceDescription]::New("Nouvelle Unité d'&Organisation","Nécessite 2 Contrôleurs de Domaine et 2 Serveurs de Fichier")
             $NewGroup = [System.Management.Automation.Host.ChoiceDescription]::New("Nouveau &Groupe","Configuration d'un système RAID 1 ou 5")
             $NewUser = [System.Management.Automation.Host.ChoiceDescription]::New("Nouvel &Utilisateur","Création d'un pool LUN et d'une Cible iSCSI associée")
-            $AddGroup = [System.Management.Automation.Host.ChoiceDescription]::New("&Ajout d'utilisateurs aux groupes","Reprend le CSV créé pour les utilisateurs et les ajoutes aux groupes")
-            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($NewOU, $NewGroup, $NewUser)
+            $NewPersonalFolder = [System.Management.Automation.Host.ChoiceDescription]::New("Nouveau &dossier perso pour chaque utilisateur","Reprend le CSV créé pour les utilisateurs et les ajoutes aux groupes")
+            $Options = [System.Management.Automation.Host.ChoiceDescription[]]($NewOU, $NewGroup, $NewUser, $NewPersonalFolder)
             $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 0)
             Switch ($Choice) {
                 0 { #Layer1, Racine
@@ -311,7 +312,7 @@ function PostAd {
                     $Layers | ForEach-Object {
                         $LayerName = $_
                         [int]$UserNumber = Read-Host -Prompt "Combien d'utilisateurs créer dans $LayerName ?"
-                        $PreCSV = Invoke-Generate "[Person] $LayerName GDL_$($LayerName)_RW" -Count $UserNumber
+                        $PreCSV = Invoke-Generate "[Person] $LayerName GG_$LayerName" -Count $UserNumber
                         $CSVData = $PreCSV | Foreach-Object {
                             $Headers = $_ -Split " "
                             [PSCustomObject]@{
@@ -338,6 +339,16 @@ function PostAd {
                             New-ADUser -Name $UserCommonName -Surname $UserSurname -GivenName $UserGivenName -SamAccountName  $SamAccountName -UserPrincipalName $UserPrincipalName -DisplayName $UserDisplayName -EmailAddress $Mail -AccountPassword $AccountPassword -Path $Path  -ChangePasswordAtLogon:$true -Enabled:$true
                             Add-ADGroupMember -Identity $ADGroup -Members $SamAccountName
                         }
+                    }
+                }
+                3 { $Layers = @($RootLayerA, $RootLayerB, $RootLayerC)
+                    $RootOUPath = Get-ADOrganizationalUnit -Filter * -SearchBase $(Get-ADDomain) -SearchScope OneLevel | Where-Object -Property Name -NotLike *Domain* | Select-Object -ExpandProperty DistinguishedName
+                    $UserBase = Get-ADUser -Filter * -SearchBase $RootOUPath
+                    $DFSRootPath = "\\$((Get-ADDomain).DNSRoot)\$(Get-SMbshare -Name * | Where-Object -Property Path -like "*DFSRoot*" | Select-Object -ExpandProperty Name)"
+                    $DFSUserSharePath = Get-Dfsnfolder -Path "$DFSRootPath\PERSO" | Select-Object -ExpandProperty Path
+                    $UserBase | Foreach-Object {
+                        $UserFolder = Join-Path -Path $DFSUserSharePath -ChildPath  "$($_.Name)"
+                        New-Item -Path $UserFolder -ItemType Directory
                     }
                 }
             }
