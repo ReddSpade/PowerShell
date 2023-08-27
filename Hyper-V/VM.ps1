@@ -1,4 +1,5 @@
 #Requires -Modules Hyper-V
+Import-Module Microsoft.PowerShell.ConsoleGuiTools
 function VMMgmt {
     function WS22CORE {
         [CmdletBinding()]
@@ -57,7 +58,7 @@ function VMMgmt {
     }
     function Ubuntu {
         $TPM = Test-Path "C:\Program Files\Multipass"
-        if ($TPM -eq $false) {
+        if (-not $TPM) {
             Write-Error "Multipass n'est pas installé, Uri Multipass-> https://multipass.run/" -ErrorAction Break
         }
         else {
@@ -92,33 +93,39 @@ function VMMgmt {
 function DiskMgmt {
     function BLSDisk {
         $HVMPath = (Get-VMHost).VirtualMachinePath
-        Get-VM | Select-Object -Property Name | Out-Host
-        $VMNameAdd = Read-Host "Choisir la VM pour rajout des disques durs"
-        $VMFullPath = "$HVMPath$VMNameAdd"
+        $VMNameAdd = Get-VM | Select-Object -Property Name | Out-ConsoleGridView -OutputMode Single -Title "Choisir la VM pour rajout des disques durs"
+        $VMName = $VMNameAdd | Select-Object -ExpandProperty Name
+        $VMFullPath = "$HVMPath$VMName"
         $VHDName = @("\bdd.vhdx","\logs.vhdx","\sysvol.vhdx")
         $VHDName | ForEach-Object { New-VHD -Path $VMFullPath$_ -SizeBytes 4196MB }
-        $VHDName | Foreach-Object { Add-VMHardDiskDrive -VMName $VMNameAdd -Path $VMFullPath$_ -ControllerType SCSI -ControllerNumber 0 }
+        $VHDName | Foreach-Object { Add-VMHardDiskDrive -VMName $VMName -Path $VMFullPath$_ -ControllerType SCSI -ControllerNumber 0 }
     }
     function NewVHD {
         $HVMPath =  (Get-VMHost).VirtualMachinePath
-        Get-VM | Select-Object -Property Name | Out-Host
-        $VMNameAdd = Read-Host "Choisir la VM pour rajout des disques durs"
+        $VMNameAdd = Get-VM | Select-Object -Property Name | Out-ConsoleGridView -OutputMode Single -Title "Choisir la VM pour rajout des disques durs"
+        $VMName = $VMNameAdd | Select-Object -ExpandProperty Name
         $VHDSize = Read-Host "Veuillez entrer une taille en GB"
         $VHDName = Read-Host "Veuillez nommer votre disque"
-        New-VHD -Path "$HVMPath$VMNameAdd\$VHDName.vhdx" -SizeBytes "$($VHDSize)GB"
-        Add-VMHardDiskDrive -VMName $VMNameAdd -ControllerType SCSI -ControllerNumber 0 -Path "$HVMPath$VMNameAdd\$VHDName.vhdx"
+        New-VHD -Path "$HVMPath$VMName\$VHDName.vhdx" -SizeBytes "$($VHDSize)GB"
+        Add-VMHardDiskDrive -VMName $VMName -ControllerType SCSI -ControllerNumber 0 -Path "$HVMPath$VMName\$VHDName.vhdx"
     }
-    $Title = "Démarrer toute les VM ou une seule ?"
+    function NewCD {
+        $VMNameAdd = Get-VM | Select-Object -Property Name | Out-ConsoleGridView -OutputMode Single -Title "Choisir la VM pour rajout de l'ISO"
+        $VMName = $VMNameAdd | Select-Object -ExpandProperty Name
+        $Path = Read-Host "Veuillez écrire le chemin complet de l'ISO (Ex: C:\...)"
+        Add-VMDvdDrive -VMName $VMName -Path $Path
+    }
+    $Title = "Quel Périphérique connecter ?"
         $Prompt = "Faire choix"
         $All = [System.Management.Automation.Host.ChoiceDescription]::New("Nouveau VHD pour Contrôleur de &Domaine","Crée 3 disques de 4Go nommés sysvol logs et bdd et les connectes à la VM souhaitée")
         $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Nouveau VHD","Crée un nouveau VHD puis le connecte à la VM souhaitée")
-        $options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select)
+        $DVD = [System.Management.Automation.Host.ChoiceDescription]::New("Connecter un &DVD ISO","Connecte un DVD contenant une Image Windows")
+        $options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select,$DVD)
         $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
         Switch ($Choice) {
             0 {BLSDisk}
             1 {NewVHD}
         }
-
 }
 function VMStateMgmt {
     function On {
@@ -131,7 +138,7 @@ function VMStateMgmt {
         $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
         Switch ($Choice) {
             0 {Start-VM -VMName *}
-            1 {$VMSelect = Get-VM | Select-Object Name | Out-GridView -PassThru
+            1 {$VMSelect = Get-VM | Select-Object Name | Out-ConsoleGridView -OutputMode Multiple
                Start-VM -Name $VMSelect.Name}
         }
     }
@@ -145,7 +152,7 @@ function VMStateMgmt {
         $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
         Switch ($Choice) {
             0 {Stop-VM -VMName *}
-            1 {$VMSelect = Read-Host "Choisir la VM à arrêter"
+            1 {$VMSelect = Get-VM | Select-Object Name | Out-ConsoleGridView -OutputMode Multiple
             Stop-VM -name $VMSelect}
         }
     }
@@ -166,7 +173,7 @@ function VMStateMgmt {
                 $VMLitteralPath | Foreach-Object { Remove-Item -Path "$HVMPath$($_.Name)" -Recurse -Force }
                 Write-Host "Les VM ont toutes étées supprimées"
             }
-            1 { $VMName = Get-VM | Select-Object -Property Name,Path | Out-GridView -PassThru
+            1 { $VMName = Get-VM | Select-Object -Property Name,Path |  Out-ConsoleGridView -OutputMode Multiple
                 Stop-VM -Name $VMName.Name -Force -WarningAction Ignore
                 Remove-VM -Name $VMName.Name -Force
                 Remove-Item -Path $VMName.Path -Recurse -Force
@@ -213,10 +220,10 @@ function SwitchMgmt {
         Switch ($Choice) {
             0 { Write-Host "Liste des VM existantes et leur Switch déjà connectés" -ForegroundColor Blue
                 Get-VM | Select-Object Name, @{Name="SwitchName"; Expression={$_.NetworkAdapters.SwitchName}} | Out-Host
-                $VMSwitch = Get-VMSwitch | Out-Gridview -PassThru
+                $VMSwitch = Get-VMSwitch |  Out-ConsoleGridView -OutputMode Multiple
                 Add-VMNetworkAdapter -Name "Carte Réseau" -SwitchName $VMSwitch.Name -VMName * }
-            1 { $VMSelect = Get-VM | Select-Object VMName, @{Name="SwitchName"; Expression={$_.NetworkAdapters.SwitchName}} | Out-GridView -PassThru
-                $VMSwitch = Get-VMSwitch | Out-Gridview -PassThru
+            1 { $VMSelect = Get-VM | Select-Object VMName, @{Name="SwitchName"; Expression={$_.NetworkAdapters.SwitchName}} |  Out-ConsoleGridView -OutputMode Multiple
+                $VMSwitch = Get-VMSwitch |  Out-ConsoleGridView -OutputMode Multiple
                 Add-VMNetworkAdapter -Name "Carte Réseau" -SwitchName $VMSwitch.Name -VMName $VMSelect.VMName }
             }
         }
@@ -235,11 +242,11 @@ function SwitchMgmt {
                 New-VMSwitch -Name $SwitchName -SwitchType Private }
             2 { Get-VMSwitch | Format-Table
                 $SwitchName = Read-Host "Nommer le Switch"
-                $NIC = Get-NetAdapter | Select-Object -Property Name,InterfaceDescription,Status | Out-GridView -PassThru
+                $NIC = Get-NetAdapter | Select-Object -Property Name,InterfaceDescription,Status |  Out-ConsoleGridView -OutputMode Multiple
                 New-VMSwitch -Name $SwitchName -NetAdapterName $NIC.Name }
             }
         }
-        $Title = "Démarrer toute les VM ou une seule ?"
+        $Title = "Menu de création des Switchs"
         $Prompt = "Faire choix"
         $Connection = [System.Management.Automation.Host.ChoiceDescription]::New("&Connecter Switch","Connexion d'un Switch à la Carte Réseau d'une ou de toutes les VM")
         $New = [System.Management.Automation.Host.ChoiceDescription]::New("&Nouveau Switch","Création d'un nouveau Switch")
@@ -262,7 +269,7 @@ function EPSIC {
     }
     function EPS {
         Get-VM | Select-Object Name | Format-Table
-        $VM = Get-VM | Select-Object Name | Out-GridView -PassThru
+        $VM = Get-VM | Select-Object Name |  Out-ConsoleGridView -OutputMode Multiple
         $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
         if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale") {
             Enter-PSSession -VMName $VM.Name -Credential $LLC
@@ -272,7 +279,7 @@ function EPSIC {
         }
     }
     function IC {
-        $VM = Get-VM | Select-Object Name | Out-GridView -PassThru
+        $VM = Get-VM | Select-Object Name |  Out-ConsoleGridView -OutputMode Multiple
         $LabSession = Read-Host "Ouvrir la session locale ou domaine (L/D) ?"
         if ($LabSession -eq "L" -or $LabSession -eq "Local" -or $LabSession -eq "Locale") {
             $Location = Read-Host "Ecrire chemin complet des Scripts à executer sur VM (Ex: C:\Script\...)"
@@ -310,7 +317,7 @@ function console {
     Write-Host "#                                                    #" -ForegroundColor DarkMagenta
     Write-Host "######################################################" -ForegroundColor DarkMagenta
     Write-Host "1: Menu de création des VM"
-    Write-Host "2: Menu de management des Disques Virtuels"
+    Write-Host "2: Menu de management des Périphériques et Disques Virtuels"
     Write-Host "3: Menu de management de l'état des VM"
     Write-Host "4: Menu de management des Switchs"
     Write-Host "5: EPSIC" -ForegroundColor DarkMagenta
