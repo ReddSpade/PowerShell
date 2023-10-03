@@ -302,6 +302,7 @@ function PostAD {
                     else {
                     $DomainName = (Get-ADDomain).dnsroot
                     $DomainRootOU = (Get-ADDomain).DistinguishedName
+                    $FQDNDC01 = (Get-ADDomainController).InfrastructureMaster
                     $FQDNDC02 = Get-ADDomainController -Filter * | Select-Object -ExpandProperty HostName | Where-Object {$_ -notlike $FQDNDC01}
                     $AllFS =  Get-ADComputer -Filter * | Select-Object -Property DNSHostName,DistinguishedName | Where-Object {$_ -like "*FS*" -or $_ -like "*SF*"}
                     New-ADOrganizationalUnit -Name "Serveurs" -Path $DomainRootOU -ProtectedFromAccidentalDeletion:$false

@@ -119,7 +119,7 @@ function DiskMgmt {
         $Prompt = "Faire choix"
         $All = [System.Management.Automation.Host.ChoiceDescription]::New("Nouveau VHD pour Contrôleur de &Domaine","Crée 3 disques de 4Go nommés sysvol logs et bdd et les connectes à la VM souhaitée")
         $Select = [System.Management.Automation.Host.ChoiceDescription]::New("&Nouveau VHD","Crée un nouveau VHD puis le connecte à la VM souhaitée")
-        $DVD = [System.Management.Automation.Host.ChoiceDescription]::New("Connecter un &DVD ISO","Connecte un DVD contenant une Image Windows")
+        $DVD = [System.Management.Automation.Host.ChoiceDescription]::New("Connecter un D&VD ISO","Connecte un DVD contenant une Image Windows")
         $options = [System.Management.Automation.Host.ChoiceDescription[]]($All, $Select,$DVD)
         $Choice = $host.UI.PromptForChoice($Title, $Prompt, $Options, 1)
         Switch ($Choice) {
